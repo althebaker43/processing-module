@@ -29,7 +29,8 @@ class AdderModule(dWidth : Int) extends Module {
   io.data.out.bits.memReq.valid := false.B
   io.data.out.bits.memReq.bits := false.B
   io.data.out.valid := io.data.out.bits.memReq.valid | io.data.out.bits.storeVal.valid
-  io.data.in.ready := false.B
+  io.data.in.ready := true.B
+  io.instr.ready := true.B
 
   val reg = RegInit(0.U(dWidth.W))
   io.data.out.bits.storeVal.bits := reg
@@ -39,10 +40,6 @@ class AdderModule(dWidth : Int) extends Module {
     storeValReg := false.B
   }
   io.data.out.bits.storeVal.valid := storeValReg
-
-  val instrReadyReg = RegInit(false.B)
-  instrReadyReg := ~instrReadyReg
-  io.instr.ready := instrReadyReg
 
   when (io.instr.valid) {
     when (io.instr.bits === AdderModule.INSTR_INCR_1.U) {

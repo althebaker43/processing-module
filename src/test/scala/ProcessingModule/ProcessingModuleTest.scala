@@ -56,4 +56,24 @@ class ProcessingModuleTester extends ChiselFlatSpec {
       }
     }
   }
+
+  it should "increment by a given value" in {
+    assertTesterPasses{
+      new OrderedDecoupledHWIOTester(){
+
+        val device_under_test = Module(new AdderModule(4))
+        inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
+        inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_STORE)
+        inputEvent(device_under_test.io.data.in.bits -> 0)
+        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
+
+        inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_INCR_DATA)
+        outputEvent(device_under_test.io.data.out.bits.memReq.bits -> 1)
+
+        inputEvent(device_under_test.io.data.in.bits -> 3)
+        inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_STORE)
+        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 3)
+      }
+    }
+  }
 }

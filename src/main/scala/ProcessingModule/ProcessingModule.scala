@@ -17,6 +17,7 @@ object AdderModule {
 
   val INSTR_NOP = 0
   val INSTR_INCR_1 = 1
+  val INSTR_INCR_DATA = 2
   val INSTR_STORE = 3
 }
 
@@ -26,8 +27,6 @@ class AdderModule(dWidth : Int) extends Module {
     val instr = Flipped(util.Decoupled(UInt(3.W)))
   });
 
-  io.data.out.bits.memReq.valid := false.B
-  io.data.out.bits.memReq.bits := false.B
   io.data.out.valid := io.data.out.bits.memReq.valid | io.data.out.bits.storeVal.valid
   io.data.in.ready := true.B
   io.instr.ready := true.B
@@ -36,14 +35,27 @@ class AdderModule(dWidth : Int) extends Module {
   io.data.out.bits.storeVal.bits := reg
 
   val storeValReg = RegInit(false.B)
-  when (storeValReg === true.B) {
+  when (storeValReg) {
     storeValReg := false.B
   }
   io.data.out.bits.storeVal.valid := storeValReg
 
+  val memReqReg = RegInit(false.B)
+  when (memReqReg) {
+    memReqReg := false.B
+  }
+  io.data.out.bits.memReq.bits := memReqReg
+  io.data.out.bits.memReq.valid := memReqReg
+
+  when (io.data.in.valid) {
+    reg := reg + io.data.in.bits
+  }
+
   when (io.instr.valid) {
     when (io.instr.bits === AdderModule.INSTR_INCR_1.U) {
       reg := reg + 1.U
+    } .elsewhen (io.instr.bits === AdderModule.INSTR_INCR_DATA.U) {
+      memReqReg := true.B
     } .elsewhen (io.instr.bits === AdderModule.INSTR_STORE.U) {
       storeValReg := true.B
     }

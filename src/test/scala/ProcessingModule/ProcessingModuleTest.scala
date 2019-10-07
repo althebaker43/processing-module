@@ -8,13 +8,17 @@ import chisel3.iotesters.{ChiselFlatSpec, OrderedDecoupledHWIOTester}
 
 class ProcessingModuleTester extends ChiselFlatSpec {
 
+  val dWidth = 4
+  val iWidth = 3
+  val queueDepth = 5
+
   behavior of "ProcessingModule"
 
   it should "initialize correctly" in {
     assertTesterPasses {
       new OrderedDecoupledHWIOTester(){
 
-        val device_under_test = Module(new AdderModule(4))
+        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_STORE)
         inputEvent(device_under_test.io.data.in.bits -> 0)
@@ -27,7 +31,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses {
       new OrderedDecoupledHWIOTester(){
 
-        val device_under_test = Module(new AdderModule(4))
+        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_STORE)
         inputEvent(device_under_test.io.data.in.bits -> 0)
@@ -44,7 +48,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses{
       new OrderedDecoupledHWIOTester(){
 
-        val device_under_test = Module(new AdderModule(4))
+        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_STORE)
         inputEvent(device_under_test.io.data.in.bits -> 0)
@@ -61,7 +65,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses{
       new OrderedDecoupledHWIOTester(){
 
-        val device_under_test = Module(new AdderModule(4))
+        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_STORE)
         inputEvent(device_under_test.io.data.in.bits -> 0)
@@ -81,7 +85,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses{
       new OrderedDecoupledHWIOTester(){
 
-        val device_under_test = Module(new AdderModule(4))
+        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_STORE)
         inputEvent(device_under_test.io.data.in.bits -> 0)

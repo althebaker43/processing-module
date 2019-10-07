@@ -39,7 +39,7 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   val STATE_POP = 1
   val state = RegInit(STATE_INIT.U(1.W))
 
-  val instrQueueIn = Flipped(util.Decoupled(new InstrIODepend(iWidth)))
+  val instrQueueIn = Wire(Flipped(util.Decoupled(new InstrIODepend(iWidth))))
   instrQueueIn.bits.ioDepend := (io.instr.bits === AdderModule.INSTR_INCR_DATA.U)
   instrQueueIn.bits.instr := io.instr.bits
   instrQueueIn.valid := io.instr.valid

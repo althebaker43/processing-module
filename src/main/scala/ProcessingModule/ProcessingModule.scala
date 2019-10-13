@@ -32,9 +32,6 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
     val instr = UInt(iWidth.W)
   }
 
-  val reg = RegInit(0.U(dWidth.W))
-  io.data.out.bits.storeVal.bits := reg
-
   val STATE_INIT = 0
   val STATE_POP = 1
   val state = RegInit(STATE_INIT.U(1.W))
@@ -45,15 +42,11 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   instrQueueIn.valid := io.instr.valid
   io.instr.ready := instrQueueIn.ready
   val instrQueue = util.Queue(instrQueueIn, queueDepth)
-  instrQueue.ready := (state === STATE_POP.U)
+
+  val reg = RegInit(0.U(dWidth.W))
+  io.data.out.bits.storeVal.bits := reg
 
   val curInstrDepend = Reg(new InstrIODepend(iWidth))
-  when (instrQueue.valid) {
-    curInstrDepend := instrQueue.bits
-  } .otherwise {
-    curInstrDepend.ioDepend := false.B
-    curInstrDepend.instr := AdderModule.INSTR_NOP.U
-  }
 
   val storeValReg = RegInit(false.B)
   when (storeValReg) {
@@ -61,18 +54,31 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   }
   io.data.out.bits.storeVal.valid := storeValReg
 
-  io.data.out.bits.memReq.bits := curInstrDepend.ioDepend
+  val memReqReg = RegInit(false.B)
+  io.data.out.bits.memReq.bits := memReqReg
   io.data.out.bits.memReq.valid := io.data.out.bits.memReq.bits
+  io.data.in.ready := memReqReg
+
+  val popReg = RegInit(false.B)
+  when (popReg) {
+    popReg := false.B
+  }
+  instrQueue.ready := popReg
+
   io.data.out.valid := io.data.out.bits.memReq.valid | io.data.out.bits.storeVal.valid
-  io.data.in.ready := curInstrDepend.ioDepend
 
   when (state === STATE_INIT.U){
     when (curInstrDepend.ioDepend) {
-      when (io.data.in.valid) {
+      when (memReqReg) {
+        when (io.data.in.valid) {
 
-        reg := reg + io.data.in.bits
+          reg := reg + io.data.in.bits
 
-        state := STATE_POP.U
+          memReqReg := false.B
+          state := STATE_POP.U
+        }
+      } .otherwise {
+        memReqReg := true.B
       }
     } .otherwise {
 
@@ -86,7 +92,24 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
     }
   } .elsewhen (state === STATE_POP.U) {
     when (instrQueue.valid) {
+      popReg := true.B
       state := STATE_INIT.U
+      curInstrDepend := instrQueue.bits
+    } .otherwise {
+      curInstrDepend.ioDepend := false.B
+      curInstrDepend.instr := AdderModule.INSTR_NOP.U
     }
   }
+}
+
+class QueueModule extends Module {
+  val io = IO(new Bundle{
+    val in = Flipped(util.Decoupled(UInt(4.W)))
+    val out = util.Decoupled(UInt(4.W))
+  })
+
+  val queueOut = util.Queue(io.in, 5)
+  io.out.bits := queueOut.bits
+  io.out.valid := queueOut.valid
+  queueOut.ready := io.out.ready
 }

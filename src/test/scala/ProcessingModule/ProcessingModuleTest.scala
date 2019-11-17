@@ -60,6 +60,9 @@ class QueueTester extends ChiselFlatSpec {
   }
 }
 
+abstract class NamedTester(val testerName : String) extends OrderedDecoupledHWIOTester {
+  override def desiredName() = testerName
+}
 
 class ProcessingModuleTester extends ChiselFlatSpec {
 
@@ -67,13 +70,11 @@ class ProcessingModuleTester extends ChiselFlatSpec {
   val iWidth = 3
   val queueDepth = 5
 
-  def test(name : String)(t : => HWIOTester) : Unit = assertTesterPasses(t /* , Seq("--target-dir", "test_run_dir/" + name) */)
-
   behavior of "ProcessingModule"
 
   it should "initialize correctly" in {
-    test("init") {
-      new OrderedDecoupledHWIOTester(){
+    assertTesterPasses {
+      new NamedTester("init"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
@@ -86,8 +87,8 @@ class ProcessingModuleTester extends ChiselFlatSpec {
   }
 
   it should "do nothing with a NOP instruction" in {
-    test("nop") {
-      new OrderedDecoupledHWIOTester(){
+    assertTesterPasses {
+      new NamedTester("nop"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
@@ -104,8 +105,8 @@ class ProcessingModuleTester extends ChiselFlatSpec {
   }
 
   it should "increment by 1" in {
-    test("incr_1") {
-      new OrderedDecoupledHWIOTester(){
+    assertTesterPasses {
+      new NamedTester("incr1"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
@@ -123,8 +124,8 @@ class ProcessingModuleTester extends ChiselFlatSpec {
   }
 
   it should "increment by a given value" in {
-    test("incr_data") {
-      new OrderedDecoupledHWIOTester(){
+    assertTesterPasses {
+      new NamedTester("incrVal"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)
@@ -142,8 +143,8 @@ class ProcessingModuleTester extends ChiselFlatSpec {
   }
 
   it should "increment in the correct order" in {
-    test("incr_order") {
-      new OrderedDecoupledHWIOTester(){
+    assertTesterPasses {
+      new NamedTester("incrOrder"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         inputEvent(device_under_test.io.instr.bits -> AdderModule.INSTR_NOP)

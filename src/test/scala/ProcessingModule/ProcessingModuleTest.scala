@@ -62,12 +62,14 @@ class QueueTester extends ChiselFlatSpec {
 
 abstract class NamedTester(val testerName : String) extends OrderedDecoupledHWIOTester {
   override def desiredName() = testerName
+  OrderedDecoupledHWIOTester.max_tick_count = 100
+  // enable_all_debug = true
 }
 
 class ProcessingModuleTester extends ChiselFlatSpec {
 
   val dWidth = 4
-  val iWidth = 3
+  val iWidth = AdderInstruction.width
   val queueDepth = 5
 
   behavior of "ProcessingModule"
@@ -78,13 +80,15 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         outputEvent(device_under_test.io.instr.pc.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_NOP)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
         outputEvent(device_under_test.io.instr.pc.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
         outputEvent(device_under_test.io.instr.pc.bits-> 2)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_DATA)
-        inputEvent(device_under_test.io.data.in.bits -> 0)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        inputEvent(device_under_test.io.data.in.bits -> 1)
+        outputEvent(device_under_test.io.instr.pc.bits -> 3)
       }
     }
   }
@@ -94,15 +98,25 @@ class ProcessingModuleTester extends ChiselFlatSpec {
       new NamedTester("nop"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_NOP)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_DATA)
+        outputEvent(device_under_test.io.instr.pc.bits -> 0)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 1)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 2)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
         inputEvent(device_under_test.io.data.in.bits -> 0)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
 
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_NOP)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.instr.pc.bits -> 3)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 4)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+
+        outputEvent(device_under_test.io.instr.pc.bits -> 5)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        inputEvent(device_under_test.io.data.in.bits -> 1)
       }
     }
   }
@@ -112,16 +126,27 @@ class ProcessingModuleTester extends ChiselFlatSpec {
       new NamedTester("incr1"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_NOP)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_DATA)
+        outputEvent(device_under_test.io.instr.pc.bits -> 0)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 1)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 2)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
         inputEvent(device_under_test.io.data.in.bits -> 0)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0, device_under_test.io.data.out.bits.memReq.bits -> 1)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
 
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 1)
+        outputEvent(device_under_test.io.instr.pc.bits -> 3)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 4)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 1)
+
+        // outputEvent(device_under_test.io.instr.pc.bits -> 5)
+        // inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        // outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        // inputEvent(device_under_test.io.data.in.bits -> 1)
       }
     }
   }
@@ -131,16 +156,20 @@ class ProcessingModuleTester extends ChiselFlatSpec {
       new NamedTester("incrVal"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_NOP)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.instr.pc.bits -> 0)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 1)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
 
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_DATA)
-        outputEvent(device_under_test.io.data.out.bits.memReq.bits -> 1)
+        outputEvent(device_under_test.io.instr.pc.bits -> 2)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
 
         inputEvent(device_under_test.io.data.in.bits -> 3)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 3)
+        outputEvent(device_under_test.io.instr.pc.bits -> 3)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 3)
       }
     }
   }
@@ -150,22 +179,40 @@ class ProcessingModuleTester extends ChiselFlatSpec {
       new NamedTester("incrOrder"){
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_NOP)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.instr.pc.bits -> 0)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 1)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
 
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_NOP)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_DATA)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
+        outputEvent(device_under_test.io.instr.pc.bits -> 2)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 3)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 4)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 5)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 6)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 7)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
+        outputEvent(device_under_test.io.instr.pc.bits -> 8)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
         inputEvent(device_under_test.io.data.in.bits -> 4)
 
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
-        outputEvent(device_under_test.io.data.out.bits.memReq.bits -> 1, device_under_test.io.data.out.bits.storeVal.bits -> 0)
-        outputEvent(device_under_test.io.data.out.bits.memReq.bits -> 0, device_under_test.io.data.out.bits.storeVal.bits -> 4)
-        outputEvent(device_under_test.io.data.out.bits.memReq.bits -> 0, device_under_test.io.data.out.bits.storeVal.bits -> 5)
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 0)
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 0)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 4)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 5)
+
+        outputEvent(device_under_test.io.instr.pc.bits -> 9)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        inputEvent(device_under_test.io.data.in.bits -> 1)
       }
     }
   }
@@ -176,15 +223,20 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         outputEvent(device_under_test.io.instr.pc.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_1)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))
         outputEvent(device_under_test.io.instr.pc.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_BGT)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeBGT, regVal=0.U))
         outputEvent(device_under_test.io.instr.pc.bits -> 3)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
         outputEvent(device_under_test.io.instr.pc.bits-> 4)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_DATA)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 1)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
         inputEvent(device_under_test.io.data.in.bits -> 0)
+
+        outputEvent(device_under_test.io.instr.pc.bits -> 5)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        inputEvent(device_under_test.io.data.in.bits -> 1)
       }
     }
   }
@@ -195,13 +247,18 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
         val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
         outputEvent(device_under_test.io.instr.pc.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_BGT)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeBGT, regVal=0.U))
         outputEvent(device_under_test.io.instr.pc.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_STORE)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
         outputEvent(device_under_test.io.instr.pc.bits-> 2)
-        outputEvent(device_under_test.io.data.out.bits.storeVal.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderModule.INSTR_INCR_DATA)
+        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
         inputEvent(device_under_test.io.data.in.bits -> 0)
+
+        outputEvent(device_under_test.io.instr.pc.bits -> 3)
+        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
+        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        inputEvent(device_under_test.io.data.in.bits -> 1)
       }
     }
   }

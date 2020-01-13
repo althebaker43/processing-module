@@ -5,12 +5,12 @@ import chisel3._
 
 class DataIO[T <: Data, U <: Data](inValueType : T, outValueType : U) extends Bundle {
   val in = Flipped(util.Decoupled(inValueType))
-  val out = util.Decoupled(outValueType)
+  val out = outValueType
 }
 
 class AdderOutput(val dWidth : Int) extends Bundle {
-  val memReq = util.Valid(Bool())
-  val storeVal = util.Valid(UInt(dWidth.W))
+  val memReq = util.Decoupled(Bool())
+  val storeVal = util.Decoupled(UInt(dWidth.W))
 }
 
 class InstrIO(iWidth : Int) extends Bundle {
@@ -25,6 +25,43 @@ object AdderModule {
   val INSTR_INCR_DATA = 2
   val INSTR_STORE = 3
   val INSTR_BGT = 4
+}
+
+object AdderInstruction {
+
+  val codeNOP :: codeIncr1 :: codeIncrData :: codeStore :: codeBGT :: Nil = util.Enum(5)
+
+  val codeWidth = codeNOP.getWidth
+
+  val regWidth = 1
+
+  val width = codeWidth + regWidth
+
+  def apply(codeLit : Int, regLit : Int) : AdderInstruction = new AdderInstruction(codeLit.U, regLit.U)
+
+  def nop : AdderInstruction = new AdderInstruction(codeNOP, 0.U)
+
+  def incr1(regLit : Int) : AdderInstruction = new AdderInstruction(codeIncr1, regLit.U)
+
+  def incrData(regLit : Int) : AdderInstruction = new AdderInstruction(codeIncrData, regLit.U)
+
+  def store(regLit : Int) : UInt = (new AdderInstruction(codeStore, regLit.U)).asUInt
+
+  def bgt(regLit : Int) : AdderInstruction = new AdderInstruction(codeBGT, regLit.U)
+
+  def createInt(codeVal : UInt, regVal : UInt) : BigInt = (new AdderInstruction).createInt(codeVal, regVal)
+}
+
+class AdderInstruction(val code : UInt = UInt(AdderInstruction.codeWidth.W), val reg : UInt = UInt(AdderInstruction.regWidth.W)) extends Bundle {
+  require(code.getWidth == AdderInstruction.codeWidth)
+  require(reg.getWidth == AdderInstruction.regWidth)
+
+  def createInt(codeVal : UInt, regVal : UInt) : BigInt = {
+    def catValWidths(valWidthA : Tuple2[BigInt, Int], valWidthB : Tuple2[BigInt, Int]) : Tuple2[BigInt, Int] = {
+      (((valWidthB._1 << valWidthA._2) | valWidthA._1), (valWidthA._2 + valWidthB._2))
+    }
+    ((((codeVal :: regVal :: Nil) map (_.litValue)) zip (getElements map (_.getWidth))) reduce catValWidths)._1
+  }
 }
 
 class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
@@ -43,7 +80,7 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   val state = RegInit(STATE_INIT.U(1.W))
 
   val instrQueueIn = Wire(Flipped(util.Decoupled(new InstrIODepend(iWidth))))
-  instrQueueIn.bits.ioDepend := (io.instr.in.bits === AdderModule.INSTR_INCR_DATA.U)
+  instrQueueIn.bits.ioDepend := (io.instr.in.bits === AdderInstruction.codeIncrData)
   instrQueueIn.bits.instr := io.instr.in.bits
   instrQueueIn.valid := io.instr.in.valid
   io.instr.in.ready := instrQueueIn.ready
@@ -56,20 +93,26 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   io.instr.pc := pcReg
 
   val reg = RegInit(0.U(dWidth.W))
-  io.data.out.bits.storeVal.bits := reg
+  io.data.out.storeVal.bits := reg
 
   val curInstrDepend = Reg(util.Valid(new InstrIODepend(iWidth)))
+
+  val curAdderInstr = Wire(new AdderInstruction)
+  curAdderInstr.code := curInstrDepend.bits.instr(2,0)
+  curAdderInstr.reg := curInstrDepend.bits.instr(3)
 
   val storeValReg = RegInit(false.B)
   when (storeValReg) {
     storeValReg := false.B
   }
-  io.data.out.bits.storeVal.valid := storeValReg
+  io.data.out.storeVal.valid := storeValReg
 
   val memReqReg = RegInit(false.B)
-  io.data.out.bits.memReq.bits := memReqReg
-  io.data.out.bits.memReq.valid := io.data.out.bits.memReq.bits
-  io.data.in.ready := memReqReg
+  io.data.out.memReq.bits := memReqReg
+  io.data.out.memReq.valid := io.data.out.memReq.bits
+
+  val dataReadyReg = RegInit(false.B)
+  io.data.in.ready := dataReadyReg
 
   val popReg = RegInit(false.B)
   when (popReg) {
@@ -77,41 +120,72 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   }
   instrQueue.ready := popReg
 
-  io.data.out.valid := io.data.out.bits.memReq.valid | io.data.out.bits.storeVal.valid
+  //io.data.out.valid := io.data.out.memReq.valid | io.data.out.storeVal.valid
+
+  val memStateInit :: memStateReq :: memStateReady :: memStateWait :: Nil = util.Enum(4)
+  val memStateReg = RegInit(memStateInit)
 
   when (state === STATE_INIT.U){
     when (curInstrDepend.valid) {
       when (curInstrDepend.bits.ioDepend) {
-        when (memReqReg) {
+
+        when (memStateReg === memStateInit) {
+          when (io.data.out.memReq.ready) {
+            memStateReg := memStateReq
+          }
+        } .elsewhen (memStateReg === memStateReq) {
+
+          memReqReg := true.B
+          pcReg.valid := false.B
+          memStateReg := memStateReady
+
+        } .elsewhen (memStateReg === memStateReady) {
+
+          memReqReg := false.B
+          dataReadyReg := true.B
+          memStateReg := memStateWait
+
+        } .elsewhen (memStateReg === memStateWait) {
+
           when (io.data.in.valid) {
+
+            dataReadyReg := false.B
+            memStateReg := memStateInit
 
             reg := reg + io.data.in.bits
 
-            memReqReg := false.B
             state := STATE_POP.U
             pcReg.bits := pcReg.bits + 1.U
             pcReg.valid := true.B
           }
-        } .otherwise {
-          memReqReg := true.B
-          pcReg.valid := false.B
         }
       } .otherwise {
 
-        when (curInstrDepend.bits.instr === AdderModule.INSTR_INCR_1.U) {
-          reg := reg + 1.U
-        } .elsewhen (curInstrDepend.bits.instr === AdderModule.INSTR_STORE.U) {
-          storeValReg := true.B
-        }
-
-        state := STATE_POP.U
-
-        when ((curInstrDepend.bits.instr === AdderModule.INSTR_BGT.U) && (reg > 0.U)) {
-          pcReg.bits := pcReg.bits + 2.U
+        when (curAdderInstr.code === AdderInstruction.codeStore) {
+          when (io.data.out.storeVal.ready) {
+            when (!storeValReg) {
+              storeValReg := true.B
+            } .otherwise {
+              state := STATE_POP.U
+              pcReg.bits := pcReg.bits + 1.U
+              pcReg.valid := true.B
+            }
+          }
         } .otherwise {
-          pcReg.bits := pcReg.bits + 1.U
+
+          when (curAdderInstr.code === AdderInstruction.codeIncr1) {
+            reg := reg + 1.U
+          }
+
+          when ((curAdderInstr.code === AdderInstruction.codeBGT) && (reg > 0.U)) {
+            pcReg.bits := pcReg.bits + 2.U
+          } .otherwise {
+            pcReg.bits := pcReg.bits + 1.U
+          }
+          pcReg.valid := true.B
+
+          state := STATE_POP.U
         }
-        pcReg.valid := true.B
       }
     } .otherwise {
       pcReg.valid := false.B
@@ -123,12 +197,15 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
       state := STATE_INIT.U
       curInstrDepend.bits := instrQueue.bits
       curInstrDepend.valid := true.B
+      pcReg.valid := false.B
     } .otherwise {
       curInstrDepend.bits.ioDepend := false.B
-      curInstrDepend.bits.instr := AdderModule.INSTR_NOP.U
+      val nopInstr = Wire(new AdderInstruction)
+      nopInstr.code := AdderInstruction.codeNOP
+      nopInstr.reg := 0.U(1.W)
+      curInstrDepend.bits.instr := nopInstr.asUInt
       curInstrDepend.valid := false.B
     }
-    pcReg.valid := false.B
   }
 }
 

@@ -66,6 +66,101 @@ abstract class NamedTester(val testerName : String) extends OrderedDecoupledHWIO
   // enable_all_debug = true
 }
 
+class Event(val port : Data, val isInput : Boolean, val portVal : BigInt)
+class InputEvent(port : Data, portVal : BigInt) extends Event(port, true, portVal)
+class OutputEvent(port : Data, portVal : BigInt) extends Event(port, false, portVal)
+
+abstract class DecoupledTester(val testerName : String) extends HWIOTester {
+
+  override def desiredName() = testerName
+
+  val max_tick_count = 100
+
+  val dut : Module
+
+  val device_under_test = dut
+
+  val events : Seq[Event]
+
+  override def finish() : Unit = {
+
+    val eventCounter = RegInit(0.U(util.log2Ceil(events.size).W))
+
+    val tickCounter = RegInit(0.U(util.log2Ceil(max_tick_count).W))
+    tickCounter := tickCounter + 1.U
+
+    for (event <- events) {
+
+      event.port match {
+        case dPort : util.DecoupledIO[Data] => {
+          if (event.isInput) {
+            dPort.valid := false.B
+            dPort.bits := 0.U
+          } else {
+            dPort.ready := false.B
+          }
+        }
+
+        case vPort : util.ValidIO[Data] => {
+          if (event.isInput) {
+            vPort.valid := false.B
+            vPort.bits := 0.U
+          }
+        }
+
+        case _ =>
+      }
+    }
+
+    for ((event, i) <- events.zipWithIndex) {
+      event.port match {
+
+        case dPort : util.DecoupledIO[Data] => {
+          when (eventCounter === i.U) {
+            if (event.isInput) {
+              dPort.valid := true.B
+              dPort.bits := event.portVal.U
+              when (dPort.ready) {
+                eventCounter := eventCounter + 1.U
+              }
+            } else {
+              dPort.ready := true.B
+              when (dPort.valid) {
+                assert(dPort.bits.asUInt() === event.portVal.U)
+                eventCounter := eventCounter + 1.U
+              }
+            }
+          }
+        }
+
+        case vPort : util.ValidIO[Data] => {
+          when (eventCounter === i.U) {
+            if (event.isInput) {
+              vPort.valid := true.B
+              vPort.bits := event.portVal.U
+              eventCounter := eventCounter + 1.U
+            } else {
+              when (vPort.valid) {
+                assert(vPort.bits.asUInt() === event.portVal.U)
+                eventCounter := eventCounter + 1.U
+              }
+            }
+          }
+        }
+
+        case _ =>
+      }
+    }
+
+    when (eventCounter === events.size.U) {
+      stop()
+    }
+    when (tickCounter >= max_tick_count.U) {
+      assert(false.B)
+    }
+  }
+}
+
 class ProcessingModuleTester extends ChiselFlatSpec {
 
   val dWidth = 4
@@ -76,19 +171,20 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
   it should "initialize correctly" in {
     assertTesterPasses {
-      new NamedTester("init"){
+      new DecoupledTester("init"){
 
-        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        outputEvent(device_under_test.io.instr.pc.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
-        outputEvent(device_under_test.io.instr.pc.bits-> 2)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
-        inputEvent(device_under_test.io.data.in.bits -> 1)
-        outputEvent(device_under_test.io.instr.pc.bits -> 3)
+        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val events = new OutputEvent(dut.io.instr.pc, 0) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)) ::
+        new OutputEvent(dut.io.instr.pc, 1) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.storeVal, 0) ::
+        new OutputEvent(dut.io.instr.pc, 2) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.memReq, 1) ::
+        new InputEvent(dut.io.data.in, 1) ::
+        new OutputEvent(dut.io.instr.pc, 3) ::
+        Nil
       }
     }
   }

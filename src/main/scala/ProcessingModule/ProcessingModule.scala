@@ -9,7 +9,7 @@ class DataIO[T <: Data, U <: Data](inValueType : T, outValueType : U) extends Bu
 }
 
 class AdderOutput(val dWidth : Int) extends Bundle {
-  val memReq = util.Decoupled(Bool())
+  val memReq = util.Valid(UInt(4.W))
   val storeVal = util.Decoupled(UInt(dWidth.W))
 }
 
@@ -107,12 +107,13 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   }
   io.data.out.storeVal.valid := storeValReg
 
-  val memReqReg = RegInit(false.B)
+  val memReqReg = RegInit(0.U(4.W))
   io.data.out.memReq.bits := memReqReg
-  io.data.out.memReq.valid := io.data.out.memReq.bits
+  io.data.out.memReq.valid := (memReqReg != 0.U) 
 
+  val dataInQueue = util.Queue(io.data.in, 3)
   val dataReadyReg = RegInit(false.B)
-  io.data.in.ready := dataReadyReg
+  dataInQueue.ready := dataReadyReg
 
   val popReg = RegInit(false.B)
   when (popReg) {
@@ -122,7 +123,7 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
 
   //io.data.out.valid := io.data.out.memReq.valid | io.data.out.storeVal.valid
 
-  val memStateInit :: memStateReq :: memStateReady :: memStateWait :: Nil = util.Enum(4)
+  val memStateInit :: memStateWait :: Nil = util.Enum(2)
   val memStateReg = RegInit(memStateInit)
 
   when (state === STATE_INIT.U){
@@ -130,29 +131,21 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
       when (curInstrDepend.bits.ioDepend) {
 
         when (memStateReg === memStateInit) {
-          when (io.data.out.memReq.ready) {
-            memStateReg := memStateReq
-          }
-        } .elsewhen (memStateReg === memStateReq) {
 
-          memReqReg := true.B
+          memReqReg := 1.U
           pcReg.valid := false.B
-          memStateReg := memStateReady
-
-        } .elsewhen (memStateReg === memStateReady) {
-
-          memReqReg := false.B
           dataReadyReg := true.B
           memStateReg := memStateWait
 
         } .elsewhen (memStateReg === memStateWait) {
 
-          when (io.data.in.valid) {
+          when (dataInQueue.valid) {
 
             dataReadyReg := false.B
             memStateReg := memStateInit
+            reg := reg + dataInQueue.bits
 
-            reg := reg + io.data.in.bits
+            memReqReg := 0.U
 
             state := STATE_POP.U
             pcReg.bits := pcReg.bits + 1.U

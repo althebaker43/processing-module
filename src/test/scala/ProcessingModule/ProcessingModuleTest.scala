@@ -3,7 +3,7 @@ package ProcessingModule
 
 import org.scalatest._
 import chisel3._
-import chisel3.iotesters.{ChiselFlatSpec, OrderedDecoupledHWIOTester, HWIOTester, PeekPokeTester, Driver}
+import chisel3.iotesters.{ChiselFlatSpec, OrderedDecoupledHWIOTester, HWIOTester, PeekPokeTester, Driver, IOAccessor}
 
 
 class QueueTester extends ChiselFlatSpec {
@@ -89,9 +89,12 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
     val tickCounter = RegInit(0.U(util.log2Ceil(max_tick_count).W))
     tickCounter := tickCounter + 1.U
 
+    val ioAccessor = new IOAccessor(dut.io)
+
     for (event <- events) {
 
       event.port match {
+
         case dPort : util.DecoupledIO[Data] => {
           if (event.isInput) {
             dPort.valid := false.B
@@ -113,10 +116,12 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
     }
 
     for ((event, i) <- events.zipWithIndex) {
+
       event.port match {
 
         case dPort : util.DecoupledIO[Data] => {
           when (eventCounter === i.U) {
+            printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(event.port) + " = " + event.portVal + "\n")
             if (event.isInput) {
               dPort.valid := true.B
               dPort.bits := event.portVal.U
@@ -126,7 +131,7 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
             } else {
               dPort.ready := true.B
               when (dPort.valid) {
-                assert(dPort.bits.asUInt() === event.portVal.U)
+                assert(dPort.bits.asUInt() === event.portVal.U, "Unexpected value: %d, expected: %d", dPort.bits.asUInt(), event.portVal.U)
                 eventCounter := eventCounter + 1.U
               }
             }
@@ -135,13 +140,14 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
 
         case vPort : util.ValidIO[Data] => {
           when (eventCounter === i.U) {
+            printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(event.port) + " = " + event.portVal + "\n")
             if (event.isInput) {
               vPort.valid := true.B
               vPort.bits := event.portVal.U
               eventCounter := eventCounter + 1.U
             } else {
               when (vPort.valid) {
-                assert(vPort.bits.asUInt() === event.portVal.U)
+                assert(vPort.bits.asUInt() === event.portVal.U, "Unexpected value: %d, expected: %d", vPort.bits.asUInt(), event.portVal.U)
                 eventCounter := eventCounter + 1.U
               }
             }
@@ -153,6 +159,7 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
     }
 
     when (eventCounter === events.size.U) {
+      printf("All events completed!\n")
       stop()
     }
     when (tickCounter >= max_tick_count.U) {
@@ -191,28 +198,28 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
   it should "do nothing with a NOP instruction" in {
     assertTesterPasses {
-      new NamedTester("nop"){
+      new DecoupledTester("nop"){
 
-        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        outputEvent(device_under_test.io.instr.pc.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 2)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-        inputEvent(device_under_test.io.data.in.bits -> 0)
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
 
-        outputEvent(device_under_test.io.instr.pc.bits -> 3)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 4)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
-
-        outputEvent(device_under_test.io.instr.pc.bits -> 5)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
-        inputEvent(device_under_test.io.data.in.bits -> 1)
+        val events = new OutputEvent(dut.io.instr.pc, 0) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)) ::
+        new OutputEvent(dut.io.instr.pc, 1) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.storeVal, 0) ::
+        new OutputEvent(dut.io.instr.pc, 2) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
+        new InputEvent(dut.io.data.in, 0) ::
+        new OutputEvent(dut.io.instr.pc, 3) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)) ::
+        new OutputEvent(dut.io.instr.pc, 4) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.storeVal, 0) ::
+        new OutputEvent(dut.io.instr.pc, 5) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.memReq, 1) ::
+        new InputEvent(dut.io.data.in, 1) ::
+        Nil
       }
     }
   }

@@ -119,7 +119,8 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
   when (popReg) {
     popReg := false.B
   }
-  instrQueue.ready := popReg
+
+  instrQueue.ready := (state === STATE_POP.U)
 
   //io.data.out.valid := io.data.out.memReq.valid | io.data.out.storeVal.valid
 
@@ -148,6 +149,7 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
             memReqReg := 0.U
 
             state := STATE_POP.U
+            popReg := true.B
             pcReg.bits := pcReg.bits + 1.U
             pcReg.valid := true.B
           }
@@ -160,15 +162,12 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
               storeValReg := true.B
             } .otherwise {
               state := STATE_POP.U
+              popReg := true.B
               pcReg.bits := pcReg.bits + 1.U
               pcReg.valid := true.B
             }
           }
         } .otherwise {
-
-          when (curAdderInstr.code === AdderInstruction.codeIncr1) {
-            reg := reg + 1.U
-          }
 
           when ((curAdderInstr.code === AdderInstruction.codeBGT) && (reg > 0.U)) {
             pcReg.bits := pcReg.bits + 2.U
@@ -178,15 +177,16 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
           pcReg.valid := true.B
 
           state := STATE_POP.U
+          popReg := true.B
         }
       }
     } .otherwise {
       pcReg.valid := false.B
       state := STATE_POP.U
+      popReg := true.B
     }
   } .elsewhen (state === STATE_POP.U) {
     when (instrQueue.valid) {
-      popReg := true.B
       state := STATE_INIT.U
       curInstrDepend.bits := instrQueue.bits
       curInstrDepend.valid := true.B
@@ -198,6 +198,7 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
       nopInstr.reg := 0.U(1.W)
       curInstrDepend.bits.instr := nopInstr.asUInt
       curInstrDepend.valid := false.B
+      pcReg.valid := !io.instr.in.valid
     }
   }
 }

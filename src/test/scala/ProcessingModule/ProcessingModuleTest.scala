@@ -84,35 +84,15 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
 
   override def finish() : Unit = {
 
-    val eventCounter = RegInit(0.U(util.log2Ceil(events.size).W))
+    val eventCounter = RegInit(0.U(math.max(util.log2Ceil(events.size), 1).W))
 
     val tickCounter = RegInit(0.U(util.log2Ceil(max_tick_count).W))
     tickCounter := tickCounter + 1.U
 
     val ioAccessor = new IOAccessor(dut.io)
 
-    for (event <- events) {
-
-      event.port match {
-
-        case dPort : util.DecoupledIO[Data] => {
-          if (event.isInput) {
-            dPort.valid := false.B
-            dPort.bits := 0.U
-          } else {
-            dPort.ready := false.B
-          }
-        }
-
-        case vPort : util.ValidIO[Data] => {
-          if (event.isInput) {
-            vPort.valid := false.B
-            vPort.bits := 0.U
-          }
-        }
-
-        case _ =>
-      }
+    for (input <- ioAccessor.dut_inputs) {
+      input := 0.U
     }
 
     for ((event, i) <- events.zipWithIndex) {
@@ -182,15 +162,8 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
         val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
         val events = new OutputEvent(dut.io.instr.pc, 0) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)) ::
-        new OutputEvent(dut.io.instr.pc, 1) ::
         new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
         new OutputEvent(dut.io.data.out.storeVal, 0) ::
-        new OutputEvent(dut.io.instr.pc, 2) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
-        new OutputEvent(dut.io.data.out.memReq, 1) ::
-        new InputEvent(dut.io.data.in, 1) ::
-        new OutputEvent(dut.io.instr.pc, 3) ::
         Nil
       }
     }
@@ -207,18 +180,6 @@ class ProcessingModuleTester extends ChiselFlatSpec {
         new OutputEvent(dut.io.instr.pc, 1) ::
         new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
         new OutputEvent(dut.io.data.out.storeVal, 0) ::
-        new OutputEvent(dut.io.instr.pc, 2) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
-        new InputEvent(dut.io.data.in, 0) ::
-        new OutputEvent(dut.io.instr.pc, 3) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)) ::
-        new OutputEvent(dut.io.instr.pc, 4) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
-        new OutputEvent(dut.io.data.out.storeVal, 0) ::
-        new OutputEvent(dut.io.instr.pc, 5) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
-        new OutputEvent(dut.io.data.out.memReq, 1) ::
-        new InputEvent(dut.io.data.in, 1) ::
         Nil
       }
     }
@@ -231,17 +192,8 @@ class ProcessingModuleTester extends ChiselFlatSpec {
         val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
 
         val events = new OutputEvent(dut.io.instr.pc, 0) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)) ::
-        new OutputEvent(dut.io.instr.pc, 1) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
-        new OutputEvent(dut.io.data.out.storeVal, 0) ::
-        new OutputEvent(dut.io.instr.pc, 2) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
-        new OutputEvent(dut.io.data.out.memReq, 1) ::
-        new InputEvent(dut.io.data.in, 0) ::
-        new OutputEvent(dut.io.instr.pc, 3) ::
         new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U)) ::
-        new OutputEvent(dut.io.instr.pc, 4) ::
+        new OutputEvent(dut.io.instr.pc, 1) ::
         new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
         new OutputEvent(dut.io.data.out.storeVal, 1) ::
         Nil
@@ -251,23 +203,18 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
   it should "increment by a given value" in {
     assertTesterPasses {
-      new NamedTester("incrVal"){
+      new DecoupledTester("incrVal"){
 
-        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        outputEvent(device_under_test.io.instr.pc.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
+        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
 
-        outputEvent(device_under_test.io.instr.pc.bits -> 2)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
-
-        inputEvent(device_under_test.io.data.in.bits -> 3)
-        outputEvent(device_under_test.io.instr.pc.bits -> 3)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 3)
+        val events = new OutputEvent(dut.io.instr.pc, 0) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.memReq, 1) ::
+        new InputEvent(dut.io.data.in, 2) ::
+        new OutputEvent(dut.io.instr.pc, 1) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.storeVal, 2) ::
+        Nil
       }
     }
   }

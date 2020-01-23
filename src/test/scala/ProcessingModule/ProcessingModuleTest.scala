@@ -226,30 +226,25 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
   it should "increment by 1" in {
     assertTesterPasses {
-      new NamedTester("incr1"){
+      new DecoupledTester("incr1"){
 
-        val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
-        outputEvent(device_under_test.io.instr.pc.bits -> 0)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 1)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 2)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-        inputEvent(device_under_test.io.data.in.bits -> 0)
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
-        outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
 
-        outputEvent(device_under_test.io.instr.pc.bits -> 3)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))
-        outputEvent(device_under_test.io.instr.pc.bits -> 4)
-        inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-        outputEvent(device_under_test.io.data.out.storeVal.bits -> 1)
-
-        // outputEvent(device_under_test.io.instr.pc.bits -> 5)
-        // inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-        // outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
-        // inputEvent(device_under_test.io.data.in.bits -> 1)
+        val events = new OutputEvent(dut.io.instr.pc, 0) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)) ::
+        new OutputEvent(dut.io.instr.pc, 1) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.storeVal, 0) ::
+        new OutputEvent(dut.io.instr.pc, 2) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.memReq, 1) ::
+        new InputEvent(dut.io.data.in, 0) ::
+        new OutputEvent(dut.io.instr.pc, 3) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U)) ::
+        new OutputEvent(dut.io.instr.pc, 4) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
+        new OutputEvent(dut.io.data.out.storeVal, 1) ::
+        Nil
       }
     }
   }

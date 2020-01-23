@@ -169,6 +169,10 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
           }
         } .otherwise {
 
+          when (curAdderInstr.code === AdderInstruction.codeIncr1) {
+            reg := reg + 1.U
+          }
+
           when ((curAdderInstr.code === AdderInstruction.codeBGT) && (reg > 0.U)) {
             pcReg.bits := pcReg.bits + 2.U
           } .otherwise {

@@ -75,7 +75,9 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
     val instr = UInt(iWidth.W)
   }
 
-  def instrs : Seq[Instruction]
+  def initInstrs : Instructions
+
+  val instrs = initInstrs
 
   val STATE_INIT = 0
   val STATE_POP = 1
@@ -83,7 +85,7 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
 
   val instrQueueIn = Wire(Flipped(util.Decoupled(new InstrIODepend(iWidth))))
   instrQueueIn.bits.ioDepend := false.B
-  for (instr <- instrs if instr.dataInDepend) {
+  for (instr <- instrs.logic if instr.dataInDepend) {
     when (instr.decode(io.instr.in.bits)) {
       instrQueueIn.bits.ioDepend := true.B
     }
@@ -99,7 +101,6 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
   val pcReg = RegInit(pcRegInitVal)
   io.instr.pc := pcReg
 
-  val reg = RegInit(0.U(dWidth.W))
   io.data.out.storeVal.bits := 0.U
 
   val curInstrDepend = Reg(util.Valid(new InstrIODepend(iWidth)))
@@ -136,7 +137,7 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
 
   val outputDepend = Wire(Bool())
   outputDepend := false.B
-  for (instr <- instrs if instr.dataOutDepend) {
+  for (instr <- instrs.logic if instr.dataOutDepend) {
     when (instr.decode(curInstrDepend.bits.instr)) {
       outputDepend := true.B
     }
@@ -160,7 +161,7 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
             dataReadyReg := false.B
             memStateReg := memStateInit
 
-            for (instr <- instrs if instr.dataInDepend) {
+            for (instr <- instrs.logic if instr.dataInDepend) {
               when (instr.decode(curInstrDepend.bits.instr)) {
                 instr.execute(curInstrDepend.bits.instr)
               }
@@ -182,7 +183,7 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
               storeValReg := true.B
             } .otherwise {
 
-              for (instr <- instrs if instr.dataOutDepend) {
+              for (instr <- instrs.logic if instr.dataOutDepend) {
                 when (instr.decode(curInstrDepend.bits.instr)) {
                   instr.execute(curInstrDepend.bits.instr)
                 }
@@ -197,7 +198,7 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
         } .otherwise {
 
           pcReg.bits := pcReg.bits + 1.U
-          for (instr <- instrs) {
+          for (instr <- instrs.logic) {
             when (instr.decode(curInstrDepend.bits.instr)) {
               instr.execute(curInstrDepend.bits.instr)
             }
@@ -231,7 +232,12 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
   }
 }
 
-abstract class Instruction (val name : String, val dataInDepend : Boolean, val dataOutDepend : Boolean) {
+abstract class Instructions {
+
+  def logic : Seq[InstructionLogic]
+}
+
+abstract class InstructionLogic (val name : String, val dataInDepend : Boolean, val dataOutDepend : Boolean) {
 
   def decode( instr : UInt) : Bool
 
@@ -240,30 +246,37 @@ abstract class Instruction (val name : String, val dataInDepend : Boolean, val d
 
 class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends ProcessingModule(dWidth, iWidth, queueDepth) {
 
-  def getInstrCodeReg(instr : UInt) : (UInt, UInt) = (instr(2,0), instr(3))
+  def getInstrCode(instr : UInt) : UInt = instr(2,0)
 
-  def instrs = {
-    new Instruction("nop", dataInDepend=false, dataOutDepend=false) {
-      def decode ( instr : UInt ) : Bool = getInstrCodeReg(instr)._1 === AdderInstruction.codeNOP
-      def execute ( instr : UInt ) : Unit = Unit
-    } ::
-    new Instruction("incr1", dataInDepend=false, dataOutDepend=false) {
-      def decode ( instr : UInt ) : Bool = getInstrCodeReg(instr)._1 === AdderInstruction.codeIncr1
-      def execute ( instr : UInt ) : Unit = reg := reg + 1.U
-    } ::
-    new Instruction("incrData", dataInDepend=true, dataOutDepend=false) {
-      def decode ( instr : UInt ) : Bool = getInstrCodeReg(instr)._1 === AdderInstruction.codeIncrData
-      def execute ( instr : UInt ) : Unit = reg := reg + dataInQueue.bits
-    } ::
-    new Instruction("store", dataInDepend=false, dataOutDepend=true) {
-      def decode ( instr : UInt ) : Bool = getInstrCodeReg(instr)._1 === AdderInstruction.codeStore
-      def execute ( instr : UInt ) : Unit = io.data.out.storeVal.bits := reg
-    } ::
-    new Instruction("bgt", dataInDepend=false, dataOutDepend=false) {
-      def decode ( instr : UInt ) : Bool = getInstrCodeReg(instr)._1 === AdderInstruction.codeBGT
-      def execute ( instr : UInt ) : Unit = when ( reg > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
-    } ::
-    Nil
+  def getInstrReg(instr : UInt) : UInt = instr(3)
+
+  def initInstrs = new Instructions {
+
+    val reg = RegInit(0.U(dWidth.W))
+
+    def logic = {
+      new InstructionLogic("nop", dataInDepend=false, dataOutDepend=false) {
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeNOP
+        def execute ( instr : UInt ) : Unit = Unit
+      } ::
+      new InstructionLogic("incr1", dataInDepend=false, dataOutDepend=false) {
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncr1
+        def execute ( instr : UInt ) : Unit = reg := reg + 1.U
+      } ::
+      new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
+        def execute ( instr : UInt ) : Unit = reg := reg + dataInQueue.bits
+      } ::
+      new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeStore
+        def execute ( instr : UInt ) : Unit = io.data.out.storeVal.bits := reg
+      } ::
+      new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeBGT
+        def execute ( instr : UInt ) : Unit = when ( reg > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
+      } ::
+      Nil
+    }
   }
 }
 

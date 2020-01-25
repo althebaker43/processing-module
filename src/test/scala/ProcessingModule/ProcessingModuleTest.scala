@@ -291,4 +291,20 @@ class ProcessingModuleTester extends ChiselFlatSpec {
       }
     }
   }
+
+  it should "increment the correct register" in {
+    assertTesterPasses{
+      new DecoupledTester("incrReg") {
+
+        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+
+        val events = new OutputEvent(dut.io.instr.pc, 0) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U)) ::
+        new OutputEvent(dut.io.instr.pc, 1) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=1.U)) ::
+        new OutputEvent(dut.io.data.out.storeVal, 0) ::
+        Nil
+      }
+    }
+  }
 }

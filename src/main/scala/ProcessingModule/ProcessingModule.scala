@@ -195,15 +195,17 @@ object AdderInstruction {
   def createInt(codeVal : UInt, regVal : UInt) : BigInt = (new AdderInstruction).createInt(codeVal, regVal)
 }
 
-class AdderInstruction(val code : UInt = UInt(AdderInstruction.codeWidth.W), val reg : UInt = UInt(AdderInstruction.regWidth.W)) extends Bundle {
-  require(code.getWidth == AdderInstruction.codeWidth)
-  require(reg.getWidth == AdderInstruction.regWidth)
+class AdderInstruction extends Bundle {
+
+  val code : UInt = UInt(AdderInstruction.codeWidth.W)
+  val reg : UInt = UInt(AdderInstruction.regWidth.W)
 
   def createInt(codeVal : UInt, regVal : UInt) : BigInt = {
     def catValWidths(valWidthA : Tuple2[BigInt, Int], valWidthB : Tuple2[BigInt, Int]) : Tuple2[BigInt, Int] = {
-      (((valWidthB._1 << valWidthA._2) | valWidthA._1), (valWidthA._2 + valWidthB._2))
+      (((valWidthA._1 << valWidthB._2) | valWidthB._1), (valWidthA._2 + valWidthB._2))
     }
-    ((((codeVal :: regVal :: Nil) map (_.litValue)) zip (getElements map (_.getWidth))) reduce catValWidths)._1
+    val valWidths = ((regVal :: codeVal :: Nil) map (_.litValue)) zip (getElements map (_.getWidth))
+    (valWidths reduce catValWidths)._1
   }
 }
 
@@ -215,7 +217,7 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Processi
 
   def initInstrs = new Instructions {
 
-    val reg = RegInit(0.U(dWidth.W))
+    val regs = RegInit(VecInit(Seq.fill(2){ 0.U(dWidth.W) }))
 
     def logic = {
       new InstructionLogic("nop", dataInDepend=false, dataOutDepend=false) {
@@ -224,19 +226,19 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Processi
       } ::
       new InstructionLogic("incr1", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncr1
-        def execute ( instr : UInt ) : Unit = reg := reg + 1.U
+        def execute ( instr : UInt ) : Unit = regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + 1.U
       } ::
       new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
-        def execute ( instr : UInt ) : Unit = reg := reg + dataInQueue.bits
+        def execute ( instr : UInt ) : Unit = regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataInQueue.bits
       } ::
       new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeStore
-        def execute ( instr : UInt ) : Unit = io.data.out.storeVal.bits := reg
+        def execute ( instr : UInt ) : Unit = io.data.out.storeVal.bits := regs(getInstrReg(instr))
       } ::
       new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeBGT
-        def execute ( instr : UInt ) : Unit = when ( reg > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
+        def execute ( instr : UInt ) : Unit = when ( regs(getInstrReg(instr)) > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
       } ::
       Nil
     }

@@ -208,8 +208,8 @@ class ProcessingModuleTester extends ChiselFlatSpec {
         val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
 
         val events = new OutputEvent(dut.io.instr.pc, 0) ::
-        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U)) ::
-        new OutputEvent(dut.io.data.out.memReq, 1) ::
+        new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U, addrVal=2.U)) ::
+        new OutputEvent(dut.io.data.out.addr, 2) ::
         new InputEvent(dut.io.data.in, 2) ::
         new OutputEvent(dut.io.instr.pc, 1) ::
         new InputEvent(dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U)) ::
@@ -246,9 +246,9 @@ class ProcessingModuleTester extends ChiselFlatSpec {
   //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
   //       inputEvent(device_under_test.io.data.in.bits -> 4)
 
-  //       outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
-  //       outputEvent(device_under_test.io.data.out.memReq.bits -> 0)
-  //       outputEvent(device_under_test.io.data.out.memReq.bits -> 0)
+  //       outputEvent(device_under_test.io.data.out.addr.bits -> 1)
+  //       outputEvent(device_under_test.io.data.out.addr.bits -> 0)
+  //       outputEvent(device_under_test.io.data.out.addr.bits -> 0)
   //       outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
   //       outputEvent(device_under_test.io.data.out.storeVal.bits -> 0)
   //       outputEvent(device_under_test.io.data.out.storeVal.bits -> 4)
@@ -256,7 +256,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
 
   //       outputEvent(device_under_test.io.instr.pc.bits -> 9)
   //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-  //       outputEvent(device_under_test.io.data.out.memReq.bits -> 1)
+  //       outputEvent(device_under_test.io.data.out.addr.bits -> 1)
   //       inputEvent(device_under_test.io.data.in.bits -> 1)
   //     }
   //   }

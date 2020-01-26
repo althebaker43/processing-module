@@ -13,9 +13,11 @@ abstract class InstructionLogic (val name : String, val dataInDepend : Boolean, 
   def decode( instr : UInt) : Bool
 
   def execute( instr : UInt) : Unit
+
+  def load(instr : UInt) : UInt = 0.U
 }
 
-abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
+abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
 
   val io = IO(new Bundle {
     val instr = new Bundle {
@@ -25,7 +27,7 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
     val data = new Bundle {
       val in = Flipped(util.Decoupled(UInt(dWidth.W)))
       val out = new Bundle {
-        val memReq = util.Valid(UInt(4.W))
+        val addr = util.Valid(UInt(dAddrWidth.W))
         val storeVal = util.Decoupled(UInt(dWidth.W))
       }
     }
@@ -71,9 +73,11 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
   }
   io.data.out.storeVal.valid := storeValReg
 
-  val memReqReg = RegInit(0.U(4.W))
-  io.data.out.memReq.bits := memReqReg
-  io.data.out.memReq.valid := (memReqReg =/= 0.U) 
+  val dAddrInitVal = Wire(util.Valid(UInt(dAddrWidth.W)))
+  dAddrInitVal.bits := 0.U
+  dAddrInitVal.valid := false.B
+  val dAddrReg = RegInit(dAddrInitVal)
+  io.data.out.addr := dAddrReg
 
   val dataInQueue = util.Queue(io.data.in, 3)
   val dataReadyReg = RegInit(false.B)
@@ -103,7 +107,13 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
 
         when (memStateReg === memStateInit) {
 
-          memReqReg := 1.U
+          dAddrReg.valid := true.B
+          for (instr <- instrs.logic if instr.dataInDepend) {
+            when (instr.decode(curInstrDepend.bits.instr)) {
+              dAddrReg.bits := instr.load(curInstrDepend.bits.instr)
+            }
+          }
+
           pcReg.valid := false.B
           dataReadyReg := true.B
           memStateReg := memStateWait
@@ -121,7 +131,7 @@ abstract class ProcessingModule(dWidth : Int, iWidth : Int, queueDepth : Int) ex
               }
             }
 
-            memReqReg := 0.U
+            dAddrReg.valid := false.B
 
             state := statePop
             popReg := true.B
@@ -190,30 +200,35 @@ object AdderInstruction {
 
   val regWidth = 1
 
-  val width = codeWidth + regWidth
+  val addrWidth = 4
 
-  def createInt(codeVal : UInt, regVal : UInt) : BigInt = (new AdderInstruction).createInt(codeVal, regVal)
+  val width = codeWidth + regWidth + addrWidth
+
+  def createInt(codeVal : UInt, regVal : UInt, addrVal : UInt = 0.U) : BigInt = (new AdderInstruction).createInt(codeVal, regVal, addrVal)
 }
 
 class AdderInstruction extends Bundle {
 
   val code : UInt = UInt(AdderInstruction.codeWidth.W)
   val reg : UInt = UInt(AdderInstruction.regWidth.W)
+  val addr : UInt = UInt(AdderInstruction.addrWidth.W)
 
-  def createInt(codeVal : UInt, regVal : UInt) : BigInt = {
+  def createInt(codeVal : UInt, regVal : UInt, addrVal : UInt) : BigInt = {
     def catValWidths(valWidthA : Tuple2[BigInt, Int], valWidthB : Tuple2[BigInt, Int]) : Tuple2[BigInt, Int] = {
       (((valWidthA._1 << valWidthB._2) | valWidthB._1), (valWidthA._2 + valWidthB._2))
     }
-    val valWidths = ((regVal :: codeVal :: Nil) map (_.litValue)) zip (getElements map (_.getWidth))
+    val valWidths = ((addrVal :: regVal :: codeVal :: Nil) map (_.litValue)) zip (getElements map (_.getWidth))
     (valWidths reduce catValWidths)._1
   }
 }
 
-class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends ProcessingModule(dWidth, iWidth, queueDepth) {
+class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, queueDepth) {
 
   def getInstrCode(instr : UInt) : UInt = instr(2,0)
 
   def getInstrReg(instr : UInt) : UInt = instr(3)
+
+  def getInstrAddr(instr : UInt) : UInt = instr(7,4)
 
   def initInstrs = new Instructions {
 
@@ -230,6 +245,7 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Processi
       } ::
       new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
+        override def load(instr : UInt ) : UInt = getInstrAddr(instr)
         def execute ( instr : UInt ) : Unit = regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataInQueue.bits
       } ::
       new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {

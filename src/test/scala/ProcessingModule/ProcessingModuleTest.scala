@@ -171,7 +171,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses {
       new DecoupledTester("init"){
 
-        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val dut = Module(new AdderModule(dWidth))
         val events = new OutputEvent((dut.io.instr.pc, 0)) ::
         new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U, addrVal=3.U))) ::
         new OutputEvent((dut.io.data.out.value, 0), (dut.io.data.out.addr, 3)) ::
@@ -184,7 +184,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses {
       new DecoupledTester("nop"){
 
-        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val dut = Module(new AdderModule(dWidth))
 
         val events = new OutputEvent((dut.io.instr.pc, 0)) ::
         new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ::
@@ -200,7 +200,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses {
       new DecoupledTester("incr1"){
 
-        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val dut = Module(new AdderModule(dWidth))
 
         val events = new OutputEvent((dut.io.instr.pc, 0)) ::
         new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))) ::
@@ -216,7 +216,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses {
       new DecoupledTester("incrVal"){
 
-        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val dut = Module(new AdderModule(dWidth))
 
         val events = new OutputEvent((dut.io.instr.pc, 0)) ::
         new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U, addrVal=2.U))) ::
@@ -234,7 +234,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
   //   assertTesterPasses {
   //     new NamedTester("incrOrder"){
 
-  //       val device_under_test = Module(new AdderModule(dWidth, iWidth, queueDepth))
+  //       val device_under_test = Module(new AdderModule(dWidth))
   //       outputEvent(device_under_test.io.instr.pc.bits -> 0)
   //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
   //       outputEvent(device_under_test.io.instr.pc.bits -> 1)
@@ -277,7 +277,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses{
       new DecoupledTester("bgt") {
 
-        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val dut = Module(new AdderModule(dWidth))
 
         val events = new OutputEvent((dut.io.instr.pc, 0)) ::
         new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))) ::
@@ -293,7 +293,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses {
       new DecoupledTester("bgt_eq") {
 
-        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val dut = Module(new AdderModule(dWidth))
 
         val events = new OutputEvent((dut.io.instr.pc, 0)) ::
         new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeBGT, regVal=0.U))) ::
@@ -307,7 +307,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     assertTesterPasses{
       new DecoupledTester("incrReg") {
 
-        val dut = Module(new AdderModule(dWidth, iWidth, queueDepth))
+        val dut = Module(new AdderModule(dWidth))
 
         val events = new OutputEvent((dut.io.instr.pc, 0)) ::
         new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))) ::

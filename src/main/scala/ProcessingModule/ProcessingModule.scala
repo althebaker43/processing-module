@@ -35,12 +35,12 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, qu
     }
   });
 
+  def initInstrs : Instructions
+
   class InstrIODepend(val iWidth : Int) extends Bundle {
     val ioDepend = Bool()
     val instr = UInt(iWidth.W)
   }
-
-  def initInstrs : Instructions
 
   val instrs = initInstrs
 
@@ -235,7 +235,7 @@ class AdderInstruction extends Bundle {
   }
 }
 
-class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, queueDepth) {
+class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, 3) {
 
   def getInstrCode(instr : UInt) : UInt = instr(2,0)
   def getInstrReg(instr : UInt) : UInt = instr(3)
@@ -251,22 +251,38 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Processi
         def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("incr1", dataInDepend=false, dataOutDepend=false) {
-        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncr1
-        def execute ( instr : UInt ) : Unit = regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + 1.U
+        def decode ( instr : UInt ) : Bool = {
+          getInstrCode(instr) === AdderInstruction.codeIncr1
+        }
+        def execute ( instr : UInt ) : Unit = {
+          regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + 1.U
+        }
       } ::
       new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
-        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
+        def decode ( instr : UInt ) : Bool = {
+          getInstrCode(instr) === AdderInstruction.codeIncrData
+        }
         override def load ( instr : UInt ) : UInt = getInstrAddr(instr)
-        def execute ( instr : UInt ) : Unit = regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataIn
+        def execute ( instr : UInt ) : Unit = {
+          regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataIn
+        }
       } ::
       new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
-        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeStore
+        def decode ( instr : UInt ) : Bool = {
+          getInstrCode(instr) === AdderInstruction.codeStore
+        }
         override def store ( instr : UInt ) : UInt = getInstrAddr(instr)
-        def execute ( instr : UInt ) : Unit = dataOut := regs(getInstrReg(instr))
+        def execute ( instr : UInt ) : Unit = {
+          dataOut := regs(getInstrReg(instr))
+        }
       } ::
       new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
-        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeBGT
-        def execute ( instr : UInt ) : Unit = when ( regs(getInstrReg(instr)) > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
+        def decode ( instr : UInt ) : Bool = {
+          getInstrCode(instr) === AdderInstruction.codeBGT
+        }
+        def execute ( instr : UInt ) : Unit = {
+          when ( regs(getInstrReg(instr)) > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
+        }
       } ::
       Nil
     }

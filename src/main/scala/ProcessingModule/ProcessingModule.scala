@@ -15,6 +15,8 @@ abstract class InstructionLogic (val name : String, val dataInDepend : Boolean, 
   def execute( instr : UInt) : Unit
 
   def load(instr : UInt) : UInt = 0.U
+
+  def store(instr : UInt) : UInt = 0.U
 }
 
 abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
@@ -28,7 +30,7 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, qu
       val in = Flipped(util.Decoupled(UInt(dWidth.W)))
       val out = new Bundle {
         val addr = util.Valid(UInt(dAddrWidth.W))
-        val storeVal = util.Decoupled(UInt(dWidth.W))
+        val value = util.Decoupled(UInt(dWidth.W))
       }
     }
   });
@@ -63,15 +65,14 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, qu
   val pcReg = RegInit(pcRegInitVal)
   io.instr.pc := pcReg
 
-  io.data.out.storeVal.bits := 0.U
+  io.data.out.value.bits := 0.U
 
   val curInstrDepend = Reg(util.Valid(new InstrIODepend(iWidth)))
 
-  val storeValReg = RegInit(false.B)
-  when (storeValReg) {
-    storeValReg := false.B
-  }
-  io.data.out.storeVal.valid := storeValReg
+  val dataOutValid = RegInit(false.B)
+  val dataOut = RegInit(0.U(dWidth.W))
+  io.data.out.value.valid := dataOutValid
+  io.data.out.value.bits := dataOut
 
   val dAddrInitVal = Wire(util.Valid(UInt(dAddrWidth.W)))
   dAddrInitVal.bits := 0.U
@@ -82,6 +83,9 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, qu
   val dataInQueue = util.Queue(io.data.in, 3)
   val dataReadyReg = RegInit(false.B)
   dataInQueue.ready := dataReadyReg
+
+  val dataIn = Wire(UInt(dWidth.W))
+  dataIn := dataInQueue.bits
 
   val popReg = RegInit(false.B)
   when (popReg) {
@@ -142,17 +146,26 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, qu
       } .otherwise {
 
         when (outputDepend) {
-          when (io.data.out.storeVal.ready) {
-            when (!storeValReg) {
-              storeValReg := true.B
-            } .otherwise {
+          when (io.data.out.value.ready) {
+            when (!dataOutValid) {
 
+              dAddrReg.valid := true.B
+              for (instr <- instrs.logic if instr.dataOutDepend) {
+                when (instr.decode(curInstrDepend.bits.instr)) {
+                  dAddrReg.bits := instr.store(curInstrDepend.bits.instr)
+                }
+              }
+
+              dataOutValid := true.B
               for (instr <- instrs.logic if instr.dataOutDepend) {
                 when (instr.decode(curInstrDepend.bits.instr)) {
                   instr.execute(curInstrDepend.bits.instr)
                 }
               }
+            } .otherwise {
 
+              dAddrReg.valid := false.B
+              dataOutValid := false.B
               state := statePop
               popReg := true.B
               pcReg.bits := pcReg.bits + 1.U
@@ -225,9 +238,7 @@ class AdderInstruction extends Bundle {
 class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, queueDepth) {
 
   def getInstrCode(instr : UInt) : UInt = instr(2,0)
-
   def getInstrReg(instr : UInt) : UInt = instr(3)
-
   def getInstrAddr(instr : UInt) : UInt = instr(7,4)
 
   def initInstrs = new Instructions {
@@ -245,12 +256,13 @@ class AdderModule(dWidth : Int, iWidth : Int, queueDepth : Int) extends Processi
       } ::
       new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
-        override def load(instr : UInt ) : UInt = getInstrAddr(instr)
-        def execute ( instr : UInt ) : Unit = regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataInQueue.bits
+        override def load ( instr : UInt ) : UInt = getInstrAddr(instr)
+        def execute ( instr : UInt ) : Unit = regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataIn
       } ::
       new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeStore
-        def execute ( instr : UInt ) : Unit = io.data.out.storeVal.bits := regs(getInstrReg(instr))
+        override def store ( instr : UInt ) : UInt = getInstrAddr(instr)
+        def execute ( instr : UInt ) : Unit = dataOut := regs(getInstrReg(instr))
       } ::
       new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeBGT

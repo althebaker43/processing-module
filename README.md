@@ -1,6 +1,8 @@
 Framework for Designing Programmable Modules
 ============================================
 
+Explanatory blog post: <https://www.botbakery.net/2020/02/programmable-module-framework.html>
+
 Third Chisel Community Conference Slides: <https://docs.google.com/presentation/d/1YulbUJaBq_JY_ZgJRoDZ1hji_d2j8E71Ih6SmWmWV2o/edit?usp=sharing>
 
 See AdderModule in src/main/scala/ProcessingModule/ProcessingModule.scala and its tests in src/test/scala/ProcessingModule/ProcessingModuleTests.scala for usage examples.

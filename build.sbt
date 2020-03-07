@@ -30,7 +30,7 @@ name := "ProcessingModule"
 
 version := "3.1.1"
 
-scalaVersion := "2.12.6"
+scalaVersion := "2.12.10"
 
 //crossScalaVersions := Seq("2.11.12", "2.12.4")
 
@@ -51,5 +51,3 @@ libraryDependencies ++= Seq("chisel3","chisel-iotesters").map {
 scalacOptions ++= scalacOptionsVersion(scalaVersion.value)
 
 javacOptions ++= javacOptionsVersion(scalaVersion.value)
-
-ensimeScalaVersion in ThisBuild := "2.12.6"

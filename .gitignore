@@ -340,3 +340,7 @@ hs_err_pid*
 
 .ensime
 .ensime_cache/
+
+.metals/
+.bloop/
+project/metals.sbt

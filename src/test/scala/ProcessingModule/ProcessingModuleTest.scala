@@ -159,6 +159,70 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
   }
 }
 
+abstract class DecoupledPeekPokeTester(dut : ProcessingModule) extends PeekPokeTester(dut) {
+
+  val max_tick_count = 100
+
+  val events : Seq[Event]
+
+  val ioAccessor = new IOAccessor(dut.io)
+
+  for (input <- ioAccessor.dut_inputs) {
+    val portName = "io_" + ioAccessor.port_to_name(input).replace('.', '_')
+    input match {
+      case bundle : Aggregate => println("Skipping " + portName + " as it is an aggregate.")
+      case  _ => {
+        println("Initializing port " + portName)
+        poke(portName, 0)
+      }
+    }
+  }
+
+  for (i <- 0 until max_tick_count) {
+    step(1)
+  }
+
+  def processEvent(remainingEvents : Seq[Event], numTicks : Int) {
+
+    if (numTicks > max_tick_count) {
+      fail
+      finish
+      return
+    }
+
+    step(1)
+    processEvent(remainingEvents, numTicks + 1)
+  }
+
+  processEvent(events, 0)
+}
+
+class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
+
+  val dWidth = 4
+  val iWidth = AdderInstruction.width
+  val queueDepth = 5
+
+  val createAdder : () => ProcessingModule = () => new AdderModule(dWidth)
+
+  behavior of "ProcessingModule"
+
+  it should "initialize correctly" in {
+
+    Driver(createAdder) {
+      c => new DecoupledPeekPokeTester(c){
+        val events = new OutputEvent((dut.io.instr.pc, 0)) ::
+        new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ::
+        new OutputEvent((dut.io.instr.pc, 1)) ::
+        new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))) ::
+        new OutputEvent((dut.io.data.out.value, 0)) ::
+        Nil
+      }
+    } should be(true)
+  }
+}
+
+
 class ProcessingModuleTester extends ChiselFlatSpec {
 
   val dWidth = 4

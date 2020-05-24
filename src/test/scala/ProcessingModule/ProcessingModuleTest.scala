@@ -230,48 +230,29 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     }
   }
 
-  // it should "increment in the correct order" in {
-  //   assertTesterPasses {
-  //     new NamedTester("incrOrder"){
+  it should "increment in the correct order" in {
+    assertTesterPasses {
+      new DecoupledTester("incrOrder") {
 
-  //       val device_under_test = Module(new AdderModule(dWidth))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 0)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 1)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-  //       outputEvent(device_under_test.io.data.out.value.bits -> 0)
+        val dut = Module(new AdderModule(dWidth))
 
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 2)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 3)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 4)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 5)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 6)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 7)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 8)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))
-  //       inputEvent(device_under_test.io.data.in.bits -> 4)
-
-  //       outputEvent(device_under_test.io.data.out.addr.bits -> 1)
-  //       outputEvent(device_under_test.io.data.out.addr.bits -> 0)
-  //       outputEvent(device_under_test.io.data.out.addr.bits -> 0)
-  //       outputEvent(device_under_test.io.data.out.value.bits -> 0)
-  //       outputEvent(device_under_test.io.data.out.value.bits -> 0)
-  //       outputEvent(device_under_test.io.data.out.value.bits -> 4)
-  //       outputEvent(device_under_test.io.data.out.value.bits -> 5)
-
-  //       outputEvent(device_under_test.io.instr.pc.bits -> 9)
-  //       inputEvent(device_under_test.io.instr.in.bits -> AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))
-  //       outputEvent(device_under_test.io.data.out.addr.bits -> 1)
-  //       inputEvent(device_under_test.io.data.in.bits -> 1)
-  //     }
-  //   }
-  // }
+        val events = new OutputEvent((dut.io.instr.pc, 0)) ::
+        new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))) ::
+        new OutputEvent((dut.io.instr.pc.bits, 1), (dut.io.data.out.value, 0)) ::
+        new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U))) ::
+        new OutputEvent((dut.io.instr.pc.bits, 2)) ::
+        new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))) ::
+        new OutputEvent((dut.io.instr.pc.bits, 3)) ::
+        new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))) ::
+        new OutputEvent((dut.io.instr.pc.bits, 4)) ::
+        new InputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U))) ::
+        new InputEvent((dut.io.data.in, 4)) ::
+        new OutputEvent((dut.io.data.out.value, 4)) ::
+        new OutputEvent((dut.io.data.out.value, 5)) ::
+        Nil
+      }
+    }
+  }
 
   it should "branch when greater than zero" in {
     assertTesterPasses{

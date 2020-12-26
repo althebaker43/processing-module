@@ -14,17 +14,21 @@ class UIntReorderQueue(dWidth : Int, depth : Int) extends Module {
     val readyDeq = util.Decoupled(UInt(dWidth.W))
   })
 
-  io.deq <> ReorderQueue[UInt](io.enq, depth, (i : UInt) => {
-    io.readyDeq.valid && (i === io.readyDeq.bits)
-  })
+  io.readyDeq <> util.Queue(io.readyEnq, 4)
 
-  io.readyDeq <> util.Queue(io.readyEnq)
+  val readyDeqReg = Reg(util.Valid(UInt(dWidth.W)))
+  readyDeqReg.bits := io.readyDeq.bits
+  readyDeqReg.valid := io.readyDeq.valid
+
+  io.deq <> ReorderQueue[UInt](io.enq, depth, (i : UInt) => {
+    readyDeqReg.valid && (i === readyDeqReg.bits)
+  })
 }
 
 class ReorderQueueTester extends ChiselFlatSpec {
 
   val dWidth = 4
-  val depth = 4
+  val depth = 8
 
   behavior of "ReorderQueue"
 
@@ -40,14 +44,14 @@ class ReorderQueueTester extends ChiselFlatSpec {
         new InputEvent((dut.io.readyEnq, 2)) ::
         new InputEvent((dut.io.readyEnq , 3)) ::
         new InputEvent((dut.io.readyEnq , 1)) ::
-        new OutputEvent((dut.io.deq , 4)) ::
-        new OutputEvent((dut.io.deq , 2)) ::
-        new OutputEvent((dut.io.deq , 3)) ::
-        new OutputEvent((dut.io.deq , 1)) ::
         new OutputEvent((dut.io.readyDeq , 4)) ::
+        new OutputEvent((dut.io.deq , 4)) ::
         new OutputEvent((dut.io.readyDeq , 2)) ::
+        new OutputEvent((dut.io.deq , 2)) ::
         new OutputEvent((dut.io.readyDeq , 3)) ::
+        new OutputEvent((dut.io.deq , 3)) ::
         new OutputEvent((dut.io.readyDeq , 1)) ::
+        new OutputEvent((dut.io.deq , 1)) ::
         Nil
       }
     }

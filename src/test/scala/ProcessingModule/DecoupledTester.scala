@@ -22,7 +22,7 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
 
   override def finish() : Unit = {
 
-    val eventCounter = RegInit(0.U(math.max(util.log2Ceil(events.size), 1).W))
+    val eventCounter = RegInit(0.U(math.max(util.log2Ceil(events.size), 1).W + 1.W))
 
     val eventFinished = Wire(Bool())
     eventFinished := true.B

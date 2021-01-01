@@ -56,4 +56,29 @@ class ReorderQueueTester extends ChiselFlatSpec {
       }
     }
   }
+
+  it should "operate when filled" in {
+    assertTesterPasses {
+      new DecoupledTester("filled") {
+        val dut = Module(new UIntReorderQueue(dWidth, 4))
+        val events = new InputEvent((dut.io.enq, 1)) ::
+        new InputEvent((dut.io.enq, 2)) ::
+        new InputEvent((dut.io.enq, 3)) ::
+        new InputEvent((dut.io.enq, 4)) ::
+        new InputEvent((dut.io.readyEnq, 4)) ::
+        new InputEvent((dut.io.readyEnq, 2)) ::
+        new InputEvent((dut.io.readyEnq , 3)) ::
+        new InputEvent((dut.io.readyEnq , 1)) ::
+        new OutputEvent((dut.io.readyDeq , 4)) ::
+        new OutputEvent((dut.io.deq , 4)) ::
+        new OutputEvent((dut.io.readyDeq , 2)) ::
+        new OutputEvent((dut.io.deq , 2)) ::
+        new OutputEvent((dut.io.readyDeq , 3)) ::
+        new OutputEvent((dut.io.deq , 3)) ::
+        new OutputEvent((dut.io.readyDeq , 1)) ::
+        new OutputEvent((dut.io.deq , 1)) ::
+        Nil
+      }
+    }
+  }
 }

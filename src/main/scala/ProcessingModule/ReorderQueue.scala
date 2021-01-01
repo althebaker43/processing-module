@@ -16,23 +16,18 @@ class ReorderQueue[U <: Data](val gen : U, depth : Int) extends Module {
   val idxWidth = math.ceil(math.log(depth)/math.log(2)).toInt
 
   val regs = Reg(Vec(depth, util.Valid(gen)))
-  val tail = RegInit(depth.U - 1.U)
-  val head = RegInit(depth.U - 1.U)
+  val tail = RegInit(~(0.U(idxWidth.W)))
+  val head = RegInit(~(0.U(idxWidth.W)))
   val deqReg = Reg(util.Valid(gen))
 
-  val empty = tail === head
-  val full = tail - 1.U === head
-  val offset = depth.U - 1.U - head
-
-  val updateTail = Wire(Bool())
-  updateTail := false.B
-
-  io.enq.ready := !full
-  for (i <- 0 until depth) {
-    io.data(i) := regs(i).bits
-  }
   io.deq.valid := deqReg.valid
   io.deq.bits := deqReg.bits
+
+  val full = RegInit(false.B)
+  val empty = tail === head
+
+  val offset = Wire(UInt(idxWidth.W))
+  offset := depth.U - 1.U - head
 
   // Compute index of first ready element
   val noneReady = Wire(util.Valid(UInt(idxWidth.W)))
@@ -47,51 +42,83 @@ class ReorderQueue[U <: Data](val gen : U, depth : Int) extends Module {
     (i : Int) => (regs(head - i.U).valid -> allReadyIdxs(head - i.U))
   })
 
-  // Data register update
+  io.enq.ready := !full || (io.deq.ready && readyIdx.valid)
+
   for (i <- 0 until depth) {
-    when (((i.U + offset) >= (tail + offset)) && ((i.U + offset) <= (depth.U - 1.U))) {
-      when (io.enq.valid && !full) {
-        when (!(!readyIdx.valid && io.enqReady && io.deq.ready)) {
-          when (i.U === tail) {
-            regs(i).bits := io.enq.bits
-            regs(i).valid := io.enqReady
-            updateTail := true.B
-          }
+    io.data(i) := regs(i).bits
+  }
+
+  val addElement = ~(empty && io.enqReady) && io.enq.ready && io.enq.valid
+  val removeElement = io.deq.ready && !empty && readyIdx.valid
+
+  val updateDeq = removeElement || (io.deq.ready && io.enq.valid && io.enqReady)
+  deqReg.valid := updateDeq
+
+  // Data register update
+  val inRange = Wire(Vec(depth, Bool()))
+  for (i <- 0 until depth) {
+
+    inRange(i) := ((i.U + offset) >= (tail + offset)) && ((i.U + offset) <= ~(0.U(idxWidth.W)))
+
+    when (inRange(i)) {
+      when (addElement) {
+        when (i.U === tail) {
+          regs(i).bits := io.enq.bits
+          regs(i).valid := io.enqReady
         }
-      } .elsewhen (io.deq.ready && readyIdx.valid) {
-        if (i < (depth - 1)) {
+      } .elsewhen (removeElement) {
+        when ((i.U + offset) < (depth.U - 1.U)) {
           when ((i.U + offset) >= (readyIdx.bits + offset)) {
-            regs(i).bits := regs(i+1).bits
-            regs(i).valid := io.dataReady(i+1)
+            if (i < (depth - 1)) {
+              regs(i).bits := regs(i+1).bits
+              regs(i).valid := io.dataReady(i+1)
+            }
+            else {
+              regs(i).bits := regs(0).bits
+              regs(i).valid := io.dataReady(0)
+            }
           }
+        } .otherwise {
+          regs(i).valid := false.B
         }
       } .otherwise {
         regs(i).valid := io.dataReady(i)
       }
+    } .otherwise {
+      regs(i).valid := false.B
     }
   }
 
   // Head pointer update
-  when (io.deq.ready && readyIdx.valid) {
+  when (removeElement) {
     head := head - 1.U
   }
 
   // Tail pointer update
-  when (updateTail) {
-    tail := tail - 1.U
+  when (!full) {
+    when (addElement && (tail - 1.U =/= head)) {
+      tail := tail - 1.U
+    }
+  } .otherwise {
+    when (addElement || removeElement) {
+      tail := tail - 1.U
+    }
+  }
+
+  // Full flag update 
+  when (addElement && (tail - 1.U === head)) {
+    full := true.B
+  } .elsewhen (removeElement && !addElement) {
+    full := false.B
   }
 
   // Dequeue register update
-  when (io.deq.ready) {
+  when (updateDeq) {
     when (readyIdx.valid) {
       deqReg.bits := regs(readyIdx.bits).bits
-      deqReg.valid := true.B
-    } .elsewhen (io.enq.valid && io.enqReady) {
+    } .elsewhen (io.enqReady && io.enq.valid) {
       deqReg.bits := io.enq.bits
-      deqReg.valid := true.B
     }
-  } .otherwise {
-    deqReg.valid := false.B
   }
 }
 

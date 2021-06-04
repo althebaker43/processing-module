@@ -289,6 +289,31 @@ class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstructio
   }
 }
 
+class FetchModule(iWidth : Int) extends Module {
+
+  val io = IO(new Bundle {
+    val branchPCIn = Flipped(util.Valid(UInt(64.W)))
+    val pcOut = util.Valid(UInt(64.W))
+    val memInstr = Flipped(util.Decoupled(UInt(iWidth.W)))
+    val instr = util.Decoupled(UInt(iWidth.W))
+  })
+
+  val pc = RegInit(0.U(64.W))
+  when (io.instr.ready && io.memInstr.valid) {
+    when (io.branchPCIn.valid) {
+      pc := io.branchPCIn.bits
+    }
+      .otherwise {
+        pc := pc + 1.U
+      }
+  }
+
+  io.pcOut.bits := pc
+  io.pcOut.valid := io.instr.ready
+
+  io.instr <> io.memInstr
+}
+
 class QueueModule extends Module {
   val io = IO(new Bundle{
     val in = Flipped(util.Decoupled(UInt(4.W)))

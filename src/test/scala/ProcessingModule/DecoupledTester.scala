@@ -4,9 +4,10 @@ package ProcessingModule
 import chisel3._
 import chisel3.iotesters.{HWIOTester, IOAccessor}
 
-class Event(val portVals : Seq[(Data, BigInt)], val isInput : Boolean)
-class InputEvent(portVals : (Data, BigInt)*) extends Event(portVals, true)
-class OutputEvent(portVals : (Data, BigInt)*) extends Event(portVals, false)
+class Event(val inputVals : Seq[(Data, BigInt)], val outputVals : Seq[(Data, BigInt)])
+class InputEvent(portVals : (Data, BigInt)*) extends Event(inputVals=portVals, outputVals=Nil)
+class OutputEvent(portVals : (Data, BigInt)*) extends Event(inputVals=Nil, outputVals=portVals)
+class InputOutputEvent(inputs : (Data, BigInt)*)(outputs : (Data, BigInt)*) extends Event(inputVals=inputs, outputVals=outputs)
 
 abstract class DecoupledTester(val testerName : String) extends HWIOTester {
 
@@ -38,26 +39,17 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
 
     for ((event, i) <- events.zipWithIndex) {
 
-      for ((port, value) <- event.portVals) {
+      for ((port, value) <- event.inputVals) {
 
         port match {
 
           case dPort : util.DecoupledIO[Data] => {
             when (eventCounter === i.U) {
               printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(port) + " = " + value + "\n")
-              if (event.isInput) {
-                dPort.valid := true.B
-                dPort.bits := value.U
-                when (!dPort.ready) {
-                  eventFinished := false.B
-                }
-              } else {
-                dPort.ready := true.B
-                when (dPort.valid) {
-                  assert(dPort.bits.asUInt() === value.U, "Unexpected value: %d, expected: %d", dPort.bits.asUInt(), value.U)
-                } .otherwise {
-                  eventFinished := false.B
-                }
+              dPort.valid := true.B
+              dPort.bits := value.U
+              when (!dPort.ready) {
+                eventFinished := false.B
               }
             }
           }
@@ -65,15 +57,38 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
           case vPort : util.ValidIO[Data] => {
             when (eventCounter === i.U) {
               printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(port) + " = " + value + "\n")
-              if (event.isInput) {
-                vPort.valid := true.B
-                vPort.bits := value.U
-              } else {
-                when (vPort.valid) {
-                  assert(vPort.bits.asUInt() === value.U, "Unexpected value: %d, expected: %d", vPort.bits.asUInt(), value.U)
-                } .otherwise {
-                  eventFinished := false.B
-                }
+              vPort.valid := true.B
+              vPort.bits := value.U
+            }
+          }
+
+          case _ =>
+        }
+      }
+
+      for ((port, value) <- event.outputVals) {
+
+        port match {
+
+          case dPort : util.DecoupledIO[Data] => {
+            when (eventCounter === i.U) {
+              printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(port) + " = " + value + "\n")
+              dPort.ready := true.B
+              when (dPort.valid) {
+                assert(dPort.bits.asUInt() === value.U, "Unexpected value: %d, expected: %d", dPort.bits.asUInt(), value.U)
+              } .otherwise {
+                eventFinished := false.B
+              }
+            }
+          }
+
+          case vPort : util.ValidIO[Data] => {
+            when (eventCounter === i.U) {
+              printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(port) + " = " + value + "\n")
+              when (vPort.valid) {
+                assert(vPort.bits.asUInt() === value.U, "Unexpected value: %d, expected: %d", vPort.bits.asUInt(), value.U)
+              } .otherwise {
+                eventFinished := false.B
               }
             }
           }

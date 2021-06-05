@@ -3,14 +3,16 @@ package ProcessingModule
 
 import chisel3._
 
-abstract class Instructions {
+abstract class Instructions[T <: Data] {
 
-  def logic : Seq[InstructionLogic]
+  def logic : Seq[InstructionLogic[T]]
 }
 
-abstract class InstructionLogic (val name : String, val dataInDepend : Boolean, val dataOutDepend : Boolean) {
+abstract class InstructionLogic[T <: Data] (val name : String, val dataInDepend : Boolean, val dataOutDepend : Boolean) {
 
   def decode( instr : UInt) : Bool
+
+  def getOperands(instr : UInt) : T
 
   def execute( instr : UInt) : Unit
 
@@ -19,7 +21,7 @@ abstract class InstructionLogic (val name : String, val dataInDepend : Boolean, 
   def store(instr : UInt) : UInt = 0.U
 }
 
-abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
+abstract class ProcessingModule[T <: Data](dWidth : Int, dAddrWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
 
   val io = IO(new Bundle {
     val instr = new Bundle {
@@ -35,7 +37,7 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, qu
     }
   });
 
-  def initInstrs : Instructions
+  def initInstrs : Instructions[T]
 
   class InstrIODepend(val iWidth : Int) extends Bundle {
     val ioDepend = Bool()
@@ -235,51 +237,56 @@ class AdderInstruction extends Bundle {
   }
 }
 
-class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, 3) {
+class AdderModule(dWidth : Int) extends ProcessingModule[UInt](dWidth, AdderInstruction.addrWidth, AdderInstruction.width, 3) {
 
   def getInstrCode(instr : UInt) : UInt = instr(2,0)
   def getInstrReg(instr : UInt) : UInt = instr(3)
   def getInstrAddr(instr : UInt) : UInt = instr(7,4)
 
-  def initInstrs = new Instructions {
+  def initInstrs = new Instructions[UInt] {
 
     val regs = RegInit(VecInit(Seq.fill(2){ 0.U(dWidth.W) }))
 
     def logic = {
-      new InstructionLogic("nop", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic[UInt]("nop", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeNOP
+        def getOperands(instr: UInt): UInt = 0.U
         def execute ( instr : UInt ) : Unit = Unit
       } ::
-      new InstructionLogic("incr1", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic[UInt]("incr1", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = {
           getInstrCode(instr) === AdderInstruction.codeIncr1
         }
+        def getOperands(instr : UInt) : UInt = 0.U
         def execute ( instr : UInt ) : Unit = {
           regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + 1.U
         }
       } ::
-      new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
+      new InstructionLogic[UInt]("incrData", dataInDepend=true, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = {
           getInstrCode(instr) === AdderInstruction.codeIncrData
         }
+        def getOperands(instr : UInt) : UInt = 0.U
         override def load ( instr : UInt ) : UInt = getInstrAddr(instr)
         def execute ( instr : UInt ) : Unit = {
           regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataIn
         }
       } ::
-      new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
+      new InstructionLogic[UInt]("store", dataInDepend=false, dataOutDepend=true) {
         def decode ( instr : UInt ) : Bool = {
           getInstrCode(instr) === AdderInstruction.codeStore
         }
+        def getOperands(instr : UInt) : UInt = 0.U
         override def store ( instr : UInt ) : UInt = getInstrAddr(instr)
         def execute ( instr : UInt ) : Unit = {
           dataOut := regs(getInstrReg(instr))
         }
       } ::
-      new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic[UInt]("bgt", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = {
           getInstrCode(instr) === AdderInstruction.codeBGT
         }
+        def getOperands(instr : UInt) : UInt = 0.U
         def execute ( instr : UInt ) : Unit = {
           when ( regs(getInstrReg(instr)) > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
         }
@@ -312,6 +319,34 @@ class FetchModule(iWidth : Int) extends Module {
   io.pcOut.valid := io.instr.ready
 
   io.instr <> io.memInstr
+}
+
+class DecodeModule[T <: Data](iWidth : Int, instrs : Instructions[T], val genOps : T) extends Module {
+
+  val numInstrs = instrs.logic.size
+
+  val io = IO(new Bundle {
+    val instr = Flipped(util.Valid(UInt(iWidth.W)))
+    val instrValids = Output(UInt(numInstrs.W))
+    val ops = Output(genOps)
+  })
+
+  val instrValidsReg = RegInit(0.U(numInstrs.W))
+  val instrValidsRegIn = Wire(UInt(numInstrs.W))
+  instrValidsReg := instrValidsRegIn
+  io.instrValids := instrValidsReg
+
+  val opsReg = Reg(genOps)
+  io.ops := opsReg
+
+  when (io.instr.valid) {
+    for ((instr, idx) <- instrs.logic.zipWithIndex) {
+      instrValidsRegIn(idx) := instr.decode(io.instr.bits)
+      when (instrValidsRegIn(idx)) {
+        opsReg := instr.getOperands(io.instr.bits)
+      }
+    }
+  }
 }
 
 class QueueModule extends Module {

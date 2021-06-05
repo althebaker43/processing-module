@@ -327,24 +327,28 @@ class DecodeModule[T <: Data](iWidth : Int, instrs : Instructions[T], val genOps
 
   val io = IO(new Bundle {
     val instr = Flipped(util.Valid(UInt(iWidth.W)))
-    val instrValids = Output(UInt(numInstrs.W))
+    val instrValids = Output(Vec(numInstrs, Bool()))
     val ops = Output(genOps)
   })
 
-  val instrValidsReg = RegInit(0.U(numInstrs.W))
-  val instrValidsRegIn = Wire(UInt(numInstrs.W))
-  instrValidsReg := instrValidsRegIn
-  io.instrValids := instrValidsReg
+  val instrValidsReg = Reg(Vec(numInstrs, Bool()))
+  val instrValidsRegIn = Wire(Vec(numInstrs, Bool()))
+  for (idx <- 0 until numInstrs) {
+    instrValidsReg(idx) := instrValidsRegIn(idx)
+    io.instrValids(idx) := instrValidsReg(idx)
+  }
 
   val opsReg = Reg(genOps)
   io.ops := opsReg
 
-  when (io.instr.valid) {
-    for ((instr, idx) <- instrs.logic.zipWithIndex) {
+  for ((instr, idx) <- instrs.logic.zipWithIndex) {
+    when (io.instr.valid) {
       instrValidsRegIn(idx) := instr.decode(io.instr.bits)
       when (instrValidsRegIn(idx)) {
         opsReg := instr.getOperands(io.instr.bits)
       }
+    } .otherwise {
+      instrValidsRegIn(idx) := false.B
     }
   }
 }

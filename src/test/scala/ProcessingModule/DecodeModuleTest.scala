@@ -12,27 +12,25 @@ class DummyDecodeModule extends Module {
     ops(idx) := 0.U
   }
 
-  val regs = VecInit(Seq.fill(8){ RegInit(0.U(4.W)) })
-
-  val instrs = new Instructions[Vec[UInt]] {
+  val instrs = new Instructions {
     def logic = 
-      new InstructionLogic[Vec[UInt]]("incr", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic("incr", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool =  instr(1,0) === 1.U
-        def getOperands ( instr : UInt ) : Vec[UInt] = {
-          val ops = Wire(Vec(2, UInt(4.W)))
-          ops(0) := instr(4,2)
-          ops(1) := 0.U
-          ops
+        override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
+          opIndex match {
+            case 0 => instr(4,2)
+            case 1 => 0.U
+          }
         }
         def execute ( instr : UInt ) : Unit = Unit
       } ::
-  new InstructionLogic[Vec[UInt]]("add", dataInDepend=false, dataOutDepend=false) {
+  new InstructionLogic("add", dataInDepend=false, dataOutDepend=false) {
     def decode ( instr : UInt ) : Bool = instr(1,0) === 2.U
-    def getOperands ( instr : UInt ) : Vec[UInt] = {
-      val ops = Wire(Vec(2, UInt(4.W)))
-      ops(0) := instr(4,2)
-      ops(1) := instr(7,5)
-      ops
+    override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
+      opIndex match {
+        case 0 => instr(4,2)
+        case 1 => instr(7,5)
+      }
     }
     def execute ( instr : UInt ) : Unit  = Unit
   } ::
@@ -45,7 +43,13 @@ class DummyDecodeModule extends Module {
     val ops = Output(Vec(2, UInt(4.W)))
   })
 
-  val decode = Module(new DecodeModule[Vec[UInt]](8, instrs, chiselTypeOf(ops)))
+  val decode = Module(new DecodeModule(
+    iWidth=8,
+    instrs=instrs,
+    numOps=2,
+    opWidth=4,
+    rfWidth=4,
+    rfDepth=8))
 
   io <> decode.io
 }
@@ -58,6 +62,13 @@ class DecodePeekPokeTester(dut : DummyDecodeModule) extends PeekPokeTester(dut) 
   step(1)
   expect(dut.io.instrValids(0), true.B)
   expect(dut.io.instrValids(1), false.B)
+  expect(dut.io.ops(0), 0.U)
+  expect(dut.io.ops(1), 0.U)
+
+  poke(dut.io.instr.bits, "b011_001_10".U)
+  step(1)
+  expect(dut.io.instrValids(0), false.B)
+  expect(dut.io.instrValids(1), true.B)
   expect(dut.io.ops(0), 0.U)
   expect(dut.io.ops(1), 0.U)
 }

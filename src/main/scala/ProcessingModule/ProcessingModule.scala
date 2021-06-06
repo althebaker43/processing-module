@@ -14,6 +14,16 @@ abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, v
 
   def getRFIndex(instr : UInt, opIndex : Int) : UInt = 0.U
 
+  def readMemory() : Bool = false.B
+
+  def writeMemory() : Bool = false.B
+
+  def writeRF() : Bool = false.B
+
+  def getAddress(ops : Vec[UInt]) : UInt = 0.U
+
+  def getData(ops : Vec[UInt]) : UInt = 0.U
+
   def execute( instr : UInt) : Unit
 
   def load(instr : UInt) : UInt = 0.U
@@ -355,6 +365,53 @@ class DecodeModule(
       }
     } .otherwise {
       instrValidsRegIn(idx) := false.B
+    }
+  }
+}
+
+class ExecuteResults(dataWidth : Int, addrWidth : Int) extends Bundle {
+  val addr = UInt(addrWidth.W)
+  val data = UInt(dataWidth.W)
+  val readMem = Bool()
+  val writeMem = Bool()
+  val writeRF = Bool()
+}
+
+class ExecuteModule(
+  instrs : Instructions,
+  numOps : Int,
+  opWidth : Int,
+  dataWidth : Int,
+  addrWidth : Int
+) extends Module {
+
+  val numInstrs = instrs.logic.size
+
+  val io = IO(new Bundle {
+    val instrValids = Input(Vec(numInstrs, Bool()))
+    val ops = Input(Vec(numOps, UInt(opWidth.W)))
+    val results = Output(new ExecuteResults(dataWidth, addrWidth))
+  })
+
+  val resultsReg = Reg(new ExecuteResults(dataWidth, addrWidth))
+  val results = Wire(new ExecuteResults(dataWidth, addrWidth))
+  results.readMem := false.B
+  results.writeMem := false.B
+  results.writeRF := false.B
+  results.addr := 0.U
+  results.data := 0.U
+  resultsReg <> results
+  io.results <> resultsReg
+
+  for ((instr, idx) <- instrs.logic.zipWithIndex) {
+    when (io.instrValids(idx)) {
+      results.readMem := instr.readMemory
+      results.writeMem := instr.writeMemory
+      results.writeRF := instr.writeRF
+      when (results.readMem | results.writeMem | results.writeRF) {
+        results.addr := instr.getAddress(io.ops)
+        results.data := instr.getData(io.ops)
+      }
     }
   }
 }

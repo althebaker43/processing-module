@@ -20,9 +20,9 @@ abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, v
 
   def writeRF() : Bool = false.B
 
-  def getAddress(ops : Vec[UInt]) : UInt = 0.U
+  def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
-  def getData(ops : Vec[UInt]) : UInt = 0.U
+  def getData(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
   def execute( instr : UInt) : Unit
 
@@ -375,9 +375,11 @@ class ExecuteResults(dataWidth : Int, addrWidth : Int) extends Bundle {
   val readMem = Bool()
   val writeMem = Bool()
   val writeRF = Bool()
+  override def cloneType = (new ExecuteResults(dataWidth, addrWidth)).asInstanceOf[this.type]
 }
 
 class ExecuteModule(
+  iWidth : Int,
   instrs : Instructions,
   numOps : Int,
   opWidth : Int,
@@ -388,19 +390,21 @@ class ExecuteModule(
   val numInstrs = instrs.logic.size
 
   val io = IO(new Bundle {
+    val instr = Input(UInt(iWidth.W))
     val instrValids = Input(Vec(numInstrs, Bool()))
     val ops = Input(Vec(numOps, UInt(opWidth.W)))
     val results = Output(new ExecuteResults(dataWidth, addrWidth))
   })
 
-  val resultsReg = Reg(new ExecuteResults(dataWidth, addrWidth))
   val results = Wire(new ExecuteResults(dataWidth, addrWidth))
   results.readMem := false.B
   results.writeMem := false.B
   results.writeRF := false.B
   results.addr := 0.U
   results.data := 0.U
-  resultsReg <> results
+
+  val resultsReg = RegNext(results)
+
   io.results <> resultsReg
 
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
@@ -409,8 +413,8 @@ class ExecuteModule(
       results.writeMem := instr.writeMemory
       results.writeRF := instr.writeRF
       when (results.readMem | results.writeMem | results.writeRF) {
-        results.addr := instr.getAddress(io.ops)
-        results.data := instr.getData(io.ops)
+        results.addr := instr.getAddress(io.instr, io.ops)
+        results.data := instr.getData(io.instr, io.ops)
       }
     }
   }

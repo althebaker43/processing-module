@@ -14,7 +14,7 @@ class ExecuteModuleTest extends ChiselFlatSpec {
         override def readMemory() : Bool = false.B
         override def writeMemory() : Bool = false.B
         override def writeRF(): Bool = true.B
-        override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = instr(4,2)
+        override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = instr(4,2)
         override def getData(instr : UInt, ops : Vec[UInt]) : UInt = ops(0) + 1.U
         def execute ( instr : UInt ) : Unit = Unit
       } ::
@@ -23,7 +23,7 @@ class ExecuteModuleTest extends ChiselFlatSpec {
     override def readMemory() : Bool = false.B
     override def writeMemory() : Bool = false.B
     override def writeRF() : Bool = true.B
-    override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = instr(4,2)
+    override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = instr(4,2)
     override def getData(instr : UInt, ops : Vec[UInt]) : UInt = ops(0) + ops(1)
     def execute ( instr : UInt ) : Unit  = Unit
   } ::
@@ -33,7 +33,7 @@ class ExecuteModuleTest extends ChiselFlatSpec {
   behavior of "ExecuteModule"
 
   it should "execute incr" in {
-    chisel3.iotesters.Driver(() => new ExecuteModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, dataWidth=4, addrWidth=8)){ dut =>
+    chisel3.iotesters.Driver(() => new ExecuteModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, dataWidth=4, addrWidth=8, rfDepth=8)){ dut =>
       new PeekPokeTester(dut) {
 
         poke(dut.io.instr, "b000_000_01".U)
@@ -54,7 +54,7 @@ class ExecuteModuleTest extends ChiselFlatSpec {
   }
 
   it should "execute add" in {
-    chisel3.iotesters.Driver(() => new ExecuteModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, dataWidth=4, addrWidth=8)){ dut =>
+    chisel3.iotesters.Driver(() => new ExecuteModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, dataWidth=4, addrWidth=8, rfDepth=8)){ dut =>
       new PeekPokeTester(dut) {
 
         poke(dut.io.instr, "b011_001_10".U)

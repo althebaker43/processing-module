@@ -22,6 +22,8 @@ abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, v
 
   def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
+  def getWriteIndex(intr : UInt, ops : Vec[UInt]) : UInt = 0.U
+
   def getData(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
   def execute( instr : UInt) : Unit
@@ -369,13 +371,17 @@ class DecodeModule(
   }
 }
 
-class ExecuteResults(dataWidth : Int, addrWidth : Int) extends Bundle {
+class ExecuteResults(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Bundle {
+
+  val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
+
   val addr = UInt(addrWidth.W)
+  val rfIndex = UInt(rfIdxWidth.W)
   val data = UInt(dataWidth.W)
   val readMem = Bool()
   val writeMem = Bool()
   val writeRF = Bool()
-  override def cloneType = (new ExecuteResults(dataWidth, addrWidth)).asInstanceOf[this.type]
+  override def cloneType = (new ExecuteResults(dataWidth, addrWidth, rfDepth)).asInstanceOf[this.type]
 }
 
 class ExecuteModule(
@@ -384,23 +390,26 @@ class ExecuteModule(
   numOps : Int,
   opWidth : Int,
   dataWidth : Int,
-  addrWidth : Int
+  addrWidth : Int,
+  rfDepth : Int
 ) extends Module {
 
   val numInstrs = instrs.logic.size
+  val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle {
     val instr = Input(UInt(iWidth.W))
     val instrValids = Input(Vec(numInstrs, Bool()))
     val ops = Input(Vec(numOps, UInt(opWidth.W)))
-    val results = Output(new ExecuteResults(dataWidth, addrWidth))
+    val results = Output(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth))
   })
 
-  val results = Wire(new ExecuteResults(dataWidth, addrWidth))
+  val results = Wire(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth))
   results.readMem := false.B
   results.writeMem := false.B
   results.writeRF := false.B
   results.addr := 0.U
+  results.rfIndex := 0.U
   results.data := 0.U
 
   val resultsReg = RegNext(results)
@@ -414,9 +423,66 @@ class ExecuteModule(
       results.writeRF := instr.writeRF
       when (results.readMem | results.writeMem | results.writeRF) {
         results.addr := instr.getAddress(io.instr, io.ops)
+        results.rfIndex := instr.getWriteIndex(io.instr, io.ops)
         results.data := instr.getData(io.instr, io.ops)
       }
     }
+  }
+}
+
+class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Module {
+
+  val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
+
+  val io = IO(new Bundle{
+    val results = Input(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth))
+    val memAddr = util.Valid(UInt(addrWidth.W))
+    val memDataOut = util.Decoupled(UInt(dataWidth.W))
+    val memDataIn = Flipped(util.Decoupled(UInt(dataWidth.W)))
+    val rfDataOut = util.Valid(UInt(dataWidth.W))
+    val rfIndexOut = Output(UInt(rfIdxWidth.W))
+  })
+
+  val writeMemReg = RegInit(false.B)
+  val readMemReg = RegInit(false.B)
+  val writeRFReg = RegInit(false.B)
+  val dataReg = RegInit(0.U(dataWidth.W))
+  val addrReg = RegInit(0.U(addrWidth.W))
+  val rfIdxInReg = RegInit(0.U(rfIdxWidth.W))
+
+  io.memAddr.valid := writeMemReg | readMemReg
+  io.memAddr.bits := addrReg
+  io.memDataOut.valid := writeMemReg
+  io.memDataOut.bits := dataReg
+  io.memDataIn.ready := readMemReg
+
+  val rfValidReg = RegInit(false.B)
+  val rfDataReg = RegInit(0.U(dataWidth.W))
+  val rfIdxOutReg = RegInit(0.U(rfIdxWidth.W))
+
+  io.rfDataOut.valid := rfValidReg
+  io.rfDataOut.bits := rfDataReg
+  io.rfIndexOut := rfIdxOutReg
+
+  when (io.memDataOut.ready) {
+
+    writeMemReg := io.results.writeMem
+    readMemReg := io.results.readMem
+    writeRFReg := io.results.writeRF
+    dataReg := io.results.data
+    addrReg := io.results.addr
+    rfIdxInReg := io.results.rfIndex
+  }
+
+  when (writeRFReg) {
+    when (readMemReg) {
+      rfValidReg := io.memDataIn.valid
+      rfDataReg := io.memDataIn.bits
+    } .otherwise {
+      rfValidReg := true.B
+      rfDataReg := dataReg
+    }
+    rfIdxOutReg := rfIdxInReg
   }
 }
 

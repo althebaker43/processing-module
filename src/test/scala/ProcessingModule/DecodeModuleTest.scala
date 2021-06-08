@@ -7,11 +7,6 @@ import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester}
 
 class DummyDecodeModule extends Module {
 
-  val ops = Wire(Vec(2, UInt(4.W)))
-  for (idx <- 0 until 2) {
-    ops(idx) := 0.U
-  }
-
   val instrs = new Instructions {
     def logic = 
       new InstructionLogic("incr", dataInDepend=false, dataOutDepend=false) {

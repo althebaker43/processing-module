@@ -33,9 +33,13 @@ class DummyDecodeModule extends Module {
   }
 
   val io = IO(new Bundle {
-    val instr = Flipped(util.Valid(UInt(8.W)))
+    val instrIn = Flipped(util.Valid(UInt(8.W)))
+    val data = Flipped(util.Valid(UInt(4.W)))
+    val index = Input(UInt(3.W))
     val instrValids = Output(Vec(2, Bool()))
     val ops = Output(Vec(2, UInt(4.W)))
+    val branchPC = util.Valid(UInt(64.W))
+    val instrOut = Output(UInt(8.W))
   })
 
   val decode = Module(new DecodeModule(
@@ -51,21 +55,24 @@ class DummyDecodeModule extends Module {
 
 class DecodePeekPokeTester(dut : DummyDecodeModule) extends PeekPokeTester(dut) {
 
-  poke(dut.io.instr.valid, true.B)
+  poke(dut.io.instrIn.valid, true.B)
+  poke(dut.io.data.valid, false.B)
 
-  poke(dut.io.instr.bits, "b000_001_01".U)
+  poke(dut.io.instrIn.bits, "b000_001_01".U)
   step(1)
   expect(dut.io.instrValids(0), true.B)
   expect(dut.io.instrValids(1), false.B)
   expect(dut.io.ops(0), 0.U)
   expect(dut.io.ops(1), 0.U)
+  expect(dut.io.instrOut, "b000_001_01".U)
 
-  poke(dut.io.instr.bits, "b011_001_10".U)
+  poke(dut.io.instrIn.bits, "b011_001_10".U)
   step(1)
   expect(dut.io.instrValids(0), false.B)
   expect(dut.io.instrValids(1), true.B)
   expect(dut.io.ops(0), 0.U)
   expect(dut.io.ops(1), 0.U)
+  expect(dut.io.instrOut, "b011_001_10".U)
 }
 
 class DecodeModuleTest extends ChiselFlatSpec {

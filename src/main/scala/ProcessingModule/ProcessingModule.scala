@@ -14,6 +14,10 @@ abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, v
 
   def getRFIndex(instr : UInt, opIndex : Int) : UInt = 0.U
 
+  def branch() : Bool = false.B
+
+  def getBranchPC(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
+
   def readMemory() : Bool = false.B
 
   def writeMemory() : Bool = false.B
@@ -338,11 +342,16 @@ class DecodeModule(
 ) extends Module {
 
   val numInstrs = instrs.logic.size
+  val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle {
-    val instr = Flipped(util.Valid(UInt(iWidth.W)))
+    val instrIn = Flipped(util.Valid(UInt(iWidth.W)))
+    val data = Flipped(util.Valid(UInt(rfWidth.W)))
+    val index = Input(UInt(rfIdxWidth.W))
     val instrValids = Output(Vec(numInstrs, Bool()))
     val ops = Output(Vec(numOps, UInt(opWidth.W)))
+    val branchPC = util.Valid(UInt(64.W))
+    val instrOut = Output(UInt(iWidth.W))
   })
 
   val instrValidsReg = Reg(Vec(numInstrs, Bool()))
@@ -354,19 +363,35 @@ class DecodeModule(
 
   val rf = VecInit(Seq.fill(rfDepth){ RegInit(0.U(rfWidth.W)) })
 
+  when (io.data.valid) {
+    rf(io.index) := io.data.bits
+  }
+
   val opsReg = Reg(Vec(numOps, UInt(opWidth.W)))
   io.ops := opsReg
 
+  io.branchPC.valid := false.B
+  io.branchPC.bits := 0.U
+
+  val instrReg = RegNext(io.instrIn.bits)
+  io.instrOut := instrReg
+
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
-    when (io.instr.valid) {
-      instrValidsRegIn(idx) := instr.decode(io.instr.bits)
+
+    when (io.instrIn.valid) {
+      instrValidsRegIn(idx) := instr.decode(io.instrIn.bits)
       when (instrValidsRegIn(idx)) {
         for (opIdx <- 0 until numOps) {
-          opsReg(opIdx) := rf(instr.getRFIndex(io.instr.bits, opIdx))
+          opsReg(opIdx) := rf(instr.getRFIndex(io.instrIn.bits, opIdx))
         }
       }
     } .otherwise {
       instrValidsRegIn(idx) := false.B
+    }
+
+    when (instrValidsReg(idx)) {
+      io.branchPC.valid := instr.branch
+      io.branchPC.bits := instr.getBranchPC(instrReg, opsReg)
     }
   }
 }

@@ -32,7 +32,7 @@ class ReorderQueueTester extends ChiselFlatSpec {
 
   behavior of "ReorderQueue"
 
-  it should "dequeue the first valid element" in {
+  ignore should "dequeue the first valid element" in {
     assertTesterPasses {
       new DecoupledTester("dequeue") {
         val dut = Module(new UIntReorderQueue(dWidth, depth))
@@ -57,7 +57,7 @@ class ReorderQueueTester extends ChiselFlatSpec {
     }
   }
 
-  it should "operate when filled" in {
+  ignore should "operate when filled" in {
     assertTesterPasses {
       new DecoupledTester("filled") {
         val dut = Module(new UIntReorderQueue(dWidth, 4))

@@ -76,7 +76,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     }
   }
 
-  it should "increment in the correct order" in {
+  ignore should "increment in the correct order" in {
     assertTesterPasses {
       new DecoupledTester("incrOrder") {
 

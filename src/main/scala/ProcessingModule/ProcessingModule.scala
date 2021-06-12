@@ -329,7 +329,16 @@ class FetchModule(iWidth : Int) extends Module {
   io.pcOut.bits := pc
   io.pcOut.valid := io.instr.ready
 
-  io.instr <> io.memInstr
+  io.memInstr.ready := io.instr.ready
+
+  val instrReg = RegInit(0.U(iWidth.W))
+  val instrValidReg = RegNext(io.memInstr.valid)
+  when (io.memInstr.valid) {
+    instrReg := io.memInstr.bits
+  }
+
+  io.instr.bits := instrReg
+  io.instr.valid := instrValidReg
 }
 
 class DecodeModule(

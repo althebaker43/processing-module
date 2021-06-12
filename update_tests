@@ -1,0 +1,26 @@
+#!/bin/bash
+
+bloop test processing-module-test $*
+status=$?
+
+for testDir in `ls test_run_dir | grep -v '^ProcessingModule\.'`
+do
+    testPath=test_run_dir/$testDir
+
+    pushd $testPath > /dev/null
+
+    if [ -h latest ]
+    then
+	rm latest
+    fi
+
+    for runDir in `ls -t`
+    do
+	ln -s $runDir latest
+	break
+    done
+
+    popd > /dev/null
+done
+
+exit $status

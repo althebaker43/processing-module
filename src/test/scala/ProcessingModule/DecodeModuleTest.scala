@@ -38,8 +38,8 @@ class DecodeModuleTest extends ChiselFlatSpec {
         }
       }
       override def branch : Bool = true.B
-      override def getBranchPC( instr : UInt, ops : Vec[UInt] ) : UInt = {
-        ops(0)
+      override def getBranchPC( instr : UInt, ops : Vec[UInt] ) : SInt = {
+        ops(0).asSInt
       }
       def execute ( instr : UInt ) : Unit  = Unit
     } ::
@@ -95,7 +95,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
   }
 
   it should "return branch PC" in {
-    chisel3.iotesters.Driver(() => new DecodeModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=8)){ dut =>
+    chisel3.iotesters.Driver(() => new DecodeModule(iWidth=8, instrs=instrs, numOps=2, opWidth=8, rfWidth=8, rfDepth=8)){ dut =>
       new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
@@ -112,7 +112,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut, "b000_010_11".U)
         expect(dut.io.branchPC.valid, true.B)
-        expect(dut.io.branchPC.bits, 12.U)
+        expect(dut.io.branchPC.bits, 12.S)
       }
     } should be(true)
   }

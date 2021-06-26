@@ -21,6 +21,8 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
 
   val events : Seq[Event]
 
+  def fixInputs() : Unit = {}
+
   override def finish() : Unit = {
 
     val eventCounter = RegInit(0.U(math.max(util.log2Ceil(events.size), 1).W + 1.W))
@@ -28,9 +30,6 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
     when (!running) {
       running := true.B
     }
-
-    // val eventFinished = Wire(Bool())
-    // eventFinished := true.B
 
     val maxInputs = 64
     val maxOutputs = 64
@@ -46,8 +45,13 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
     val ioAccessor = new IOAccessor(dut.io)
 
     for (input <- ioAccessor.dut_inputs) {
-      input := 0.U
+      input match {
+        case x : SInt => input := 0.S
+        case _ => input := 0.U
+      }
     }
+
+    fixInputs()
 
     for ((event, i) <- events.zipWithIndex) {
 
@@ -59,7 +63,10 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
             when ((eventCounter === i.U) & running & !inputsFinished(inputIdx.U)) {
               printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(port) + " = " + value + "\n")
               dPort.valid := true.B
-              dPort.bits := value.U
+              dPort.bits match {
+                case x : SInt => dPort.bits := value.S
+                case _ => dPort.bits := value.U
+              }
               when (dPort.ready) {
                 inputsFinished(inputIdx.U) := true.B
               }
@@ -67,10 +74,13 @@ abstract class DecoupledTester(val testerName : String) extends HWIOTester {
           }
 
           case vPort : util.ValidIO[Data] => {
-            when ((eventCounter === i.U) & running & !inputsFinished(inputIdx.U)) {
+            when ((eventCounter === i.U) & running) {
               printf("Waiting for event " + i + ": " + ioAccessor.port_to_name(port) + " = " + value + "\n")
               vPort.valid := true.B
-              vPort.bits := value.U
+              vPort.bits match {
+                case x : SInt => vPort.bits := value.S
+                case _ => vPort.bits := value.U
+              }
               inputsFinished(inputIdx.U) := true.B
             }
           }

@@ -16,7 +16,9 @@ abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, v
 
   def branch() : Bool = false.B
 
-  def getBranchPC(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
+  def relativeBranch() : Bool = false.B
+
+  def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = 0.S
 
   def readMemory() : Bool = false.B
 
@@ -30,6 +32,8 @@ abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, v
 
   def getData(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
+  def getRFWriteData(resultData : UInt, memData : UInt) : UInt = memData
+
   def execute( instr : UInt) : Unit
 
   def load(instr : UInt) : UInt = 0.U
@@ -37,7 +41,7 @@ abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, v
   def store(instr : UInt) : UInt = 0.U
 }
 
-abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, queueDepth : Int) extends Module {
+abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, numOps : Int, opWidth : Int, rfDepth : Int) extends Module {
 
   val io = IO(new Bundle {
     val instr = new Bundle {
@@ -55,172 +59,29 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, qu
 
   def initInstrs : Instructions
 
-  class InstrIODepend(val iWidth : Int) extends Bundle {
-    val ioDepend = Bool()
-    val instr = UInt(iWidth.W)
-  }
-
   val instrs = initInstrs
 
-  val stateInit :: statePop :: Nil = util.Enum(2)
-  val state = RegInit(stateInit)
+  val fetch = Module(new FetchModule(iWidth))
+  fetch.io.pcOut <> io.instr.pc
+  fetch.io.memInstr <> io.instr.in
 
-  val instrQueueIn = Wire(Flipped(util.Decoupled(new InstrIODepend(iWidth))))
-  instrQueueIn.bits.ioDepend := false.B
-  for (instr <- instrs.logic if instr.dataInDepend) {
-    when (instr.decode(io.instr.in.bits)) {
-      instrQueueIn.bits.ioDepend := true.B
-    }
-  }
-  instrQueueIn.bits.instr := io.instr.in.bits
-  instrQueueIn.valid := io.instr.in.valid
-  io.instr.in.ready := instrQueueIn.ready
-  val instrQueue = util.Queue(instrQueueIn, queueDepth)
+  val decode = Module(new DecodeModule(iWidth, instrs, numOps, opWidth, dWidth, rfDepth))
+  decode.io.instrIn <> fetch.io.instr
+  fetch.io.branchPCIn <> decode.io.branchPC
+  fetch.io.relativeBranch := decode.io.relativeBranch
 
-  val pcRegInitVal = Wire(util.Valid(UInt(64.W)))
-  pcRegInitVal.bits := 0.U
-  pcRegInitVal.valid := true.B
-  val pcReg = RegInit(pcRegInitVal)
-  io.instr.pc := pcReg
+  val execute = Module(new ExecuteModule(iWidth, instrs, numOps, dWidth, dWidth, dAddrWidth, rfDepth))
+  execute.io.instr <> decode.io.instrOut
+  execute.io.instrValids <> decode.io.instrValids
+  execute.io.ops <> decode.io.ops
 
-  io.data.out.value.bits := 0.U
-
-  val curInstrDepend = Reg(util.Valid(new InstrIODepend(iWidth)))
-
-  val dataOutValid = RegInit(false.B)
-  val dataOut = RegInit(0.U(dWidth.W))
-  io.data.out.value.valid := dataOutValid
-  io.data.out.value.bits := dataOut
-
-  val dAddrInitVal = Wire(util.Valid(UInt(dAddrWidth.W)))
-  dAddrInitVal.bits := 0.U
-  dAddrInitVal.valid := false.B
-  val dAddrReg = RegInit(dAddrInitVal)
-  io.data.out.addr := dAddrReg
-
-  val dataInQueue = util.Queue(io.data.in, 3)
-  val dataReadyReg = RegInit(false.B)
-  dataInQueue.ready := dataReadyReg
-
-  val dataIn = Wire(UInt(dWidth.W))
-  dataIn := dataInQueue.bits
-
-  val popReg = RegInit(false.B)
-  when (popReg) {
-    popReg := false.B
-  }
-
-  instrQueue.ready := (state === statePop)
-
-  val memStateInit :: memStateWait :: Nil = util.Enum(2)
-  val memStateReg = RegInit(memStateInit)
-
-  val outputDepend = Wire(Bool())
-  outputDepend := false.B
-  for (instr <- instrs.logic if instr.dataOutDepend) {
-    when (instr.decode(curInstrDepend.bits.instr)) {
-      outputDepend := true.B
-    }
-  }
-
-  when (state === stateInit){
-    when (curInstrDepend.valid) {
-      when (curInstrDepend.bits.ioDepend) {
-
-        when (memStateReg === memStateInit) {
-
-          dAddrReg.valid := true.B
-          for (instr <- instrs.logic if instr.dataInDepend) {
-            when (instr.decode(curInstrDepend.bits.instr)) {
-              dAddrReg.bits := instr.load(curInstrDepend.bits.instr)
-            }
-          }
-
-          pcReg.valid := false.B
-          dataReadyReg := true.B
-          memStateReg := memStateWait
-
-        } .elsewhen (memStateReg === memStateWait) {
-
-          when (dataInQueue.valid) {
-
-            dataReadyReg := false.B
-            memStateReg := memStateInit
-
-            for (instr <- instrs.logic if instr.dataInDepend) {
-              when (instr.decode(curInstrDepend.bits.instr)) {
-                instr.execute(curInstrDepend.bits.instr)
-              }
-            }
-
-            dAddrReg.valid := false.B
-
-            state := statePop
-            popReg := true.B
-            pcReg.bits := pcReg.bits + 1.U
-            pcReg.valid := true.B
-          }
-        }
-      } .otherwise {
-
-        when (outputDepend) {
-          when (io.data.out.value.ready) {
-            when (!dataOutValid) {
-
-              dAddrReg.valid := true.B
-              for (instr <- instrs.logic if instr.dataOutDepend) {
-                when (instr.decode(curInstrDepend.bits.instr)) {
-                  dAddrReg.bits := instr.store(curInstrDepend.bits.instr)
-                }
-              }
-
-              dataOutValid := true.B
-              for (instr <- instrs.logic if instr.dataOutDepend) {
-                when (instr.decode(curInstrDepend.bits.instr)) {
-                  instr.execute(curInstrDepend.bits.instr)
-                }
-              }
-            } .otherwise {
-
-              dAddrReg.valid := false.B
-              dataOutValid := false.B
-              state := statePop
-              popReg := true.B
-              pcReg.bits := pcReg.bits + 1.U
-              pcReg.valid := true.B
-            }
-          }
-        } .otherwise {
-
-          pcReg.bits := pcReg.bits + 1.U
-          for (instr <- instrs.logic) {
-            when (instr.decode(curInstrDepend.bits.instr)) {
-              instr.execute(curInstrDepend.bits.instr)
-            }
-          }
-
-          pcReg.valid := true.B
-          state := statePop
-          popReg := true.B
-        }
-      }
-    } .otherwise {
-      pcReg.valid := false.B
-      state := statePop
-      popReg := true.B
-    }
-  } .elsewhen (state === statePop) {
-    when (instrQueue.valid) {
-      state := stateInit
-      curInstrDepend.bits := instrQueue.bits
-      curInstrDepend.valid := true.B
-      pcReg.valid := false.B
-    } .otherwise {
-      curInstrDepend.bits.ioDepend := false.B
-      curInstrDepend.valid := false.B
-      pcReg.valid := !io.instr.in.valid
-    }
-  }
+  val memory = Module(new MemoryModule(dWidth, dAddrWidth, rfDepth, instrs))
+  memory.io.results <> execute.io.results
+  memory.io.memAddr <> io.data.out.addr
+  memory.io.memDataOut <> io.data.out.value
+  memory.io.memDataIn <> io.data.in
+  decode.io.data <> memory.io.rfDataOut
+  decode.io.index <> memory.io.rfIndexOut
 }
 
 object AdderInstruction {
@@ -253,7 +114,7 @@ class AdderInstruction extends Bundle {
   }
 }
 
-class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, 3) {
+class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, 2, dWidth, 2) {
 
   def getInstrCode(instr : UInt) : UInt = instr(2,0)
   def getInstrReg(instr : UInt) : UInt = instr(3)
@@ -261,46 +122,72 @@ class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstructio
 
   def initInstrs = new Instructions {
 
-    val regs = RegInit(VecInit(Seq.fill(2){ 0.U(dWidth.W) }))
-
     def logic = {
       new InstructionLogic("nop", dataInDepend=false, dataOutDepend=false) {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeNOP
         def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("incr1", dataInDepend=false, dataOutDepend=false) {
-        def decode ( instr : UInt ) : Bool = {
-          getInstrCode(instr) === AdderInstruction.codeIncr1
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncr1
+        override def getRFIndex(instr : UInt, opIndex : Int) : UInt = {
+          opIndex match {
+            case 0 => getInstrReg(instr)
+            case _ => 0.U
+          }
         }
-        def execute ( instr : UInt ) : Unit = {
-          regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + 1.U
-        }
+        override def writeRF : Bool = true.B
+        override def getWriteIndex(instr : UInt, ops : Vec[UInt]) = getInstrReg(instr)
+        override def getData(instr : UInt, ops : Vec[UInt]) = ops(0) + 1.U
+        def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
-        def decode ( instr : UInt ) : Bool = {
-          getInstrCode(instr) === AdderInstruction.codeIncrData
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
+        override def getRFIndex(instr : UInt, opIndex : Int) : UInt = {
+          opIndex match {
+            case 0 => getInstrReg(instr)
+            case _ => 0.U
+          }
         }
-        override def load ( instr : UInt ) : UInt = getInstrAddr(instr)
-        def execute ( instr : UInt ) : Unit = {
-          regs(getInstrReg(instr)) := regs(getInstrReg(instr)) + dataIn
-        }
+        override def writeRF : Bool = true.B
+        override def readMemory : Bool = true.B
+        override def getAddress(instr : UInt, ops : Vec[UInt]) = getInstrAddr(instr)
+        override def getWriteIndex(instr : UInt, ops : Vec[UInt]) = getInstrReg(instr)
+        override def getRFWriteData(resultData : UInt, memData : UInt) : UInt = resultData + memData
+        def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
-        def decode ( instr : UInt ) : Bool = {
-          getInstrCode(instr) === AdderInstruction.codeStore
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeStore
+        override def getRFIndex(instr : UInt, opIndex : Int) = {
+          opIndex match {
+            case 0 => getInstrReg(instr)
+            case _ => 0.U
+          }
         }
-        override def store ( instr : UInt ) : UInt = getInstrAddr(instr)
-        def execute ( instr : UInt ) : Unit = {
-          dataOut := regs(getInstrReg(instr))
-        }
+        override def writeMemory : Bool = true.B
+        override def getAddress(instr : UInt, ops : Vec[UInt]) = getInstrAddr(instr)
+        override def getData(instr : UInt, ops : Vec[UInt]) = ops(0)
+        def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
-        def decode ( instr : UInt ) : Bool = {
-          getInstrCode(instr) === AdderInstruction.codeBGT
+        def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeBGT
+        override def getRFIndex(instr : UInt, opIndex : Int) = {
+          opIndex match {
+            case 0 => getInstrReg(instr)
+            case _ => 0.U
+          }
         }
-       def execute ( instr : UInt ) : Unit = {
-          when ( regs(getInstrReg(instr)) > 0.U ) { pcReg.bits := pcReg.bits + 2.U }
+        override def branch = true.B
+        override def relativeBranch = true.B
+        override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = {
+          val offset = Wire(SInt())
+          when (ops(0) > 0.U) {
+            offset := 2.S
+          } .otherwise {
+            offset := 1.S
+          }
+          offset
         }
+        def execute ( instr : UInt ) : Unit = Unit
       } ::
       Nil
     }
@@ -310,26 +197,12 @@ class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstructio
 class FetchModule(iWidth : Int) extends Module {
 
   val io = IO(new Bundle {
-    val branchPCIn = Flipped(util.Valid(UInt(64.W)))
+    val branchPCIn = Flipped(util.Valid(SInt(64.W)))
+    val relativeBranch = Input(Bool())
     val pcOut = util.Valid(UInt(64.W))
     val memInstr = Flipped(util.Decoupled(UInt(iWidth.W)))
     val instr = util.Decoupled(UInt(iWidth.W))
   })
-
-  val pc = RegInit(0.U(64.W))
-  when (io.instr.ready && io.memInstr.valid) {
-    when (io.branchPCIn.valid) {
-      pc := io.branchPCIn.bits
-    }
-      .otherwise {
-        pc := pc + 1.U
-      }
-  }
-
-  io.pcOut.bits := pc
-  io.pcOut.valid := io.instr.ready
-
-  io.memInstr.ready := io.instr.ready
 
   val instrReg = RegInit(0.U(iWidth.W))
   val instrValidReg = RegNext(io.memInstr.valid)
@@ -339,6 +212,32 @@ class FetchModule(iWidth : Int) extends Module {
 
   io.instr.bits := instrReg
   io.instr.valid := instrValidReg
+
+  // Compute current PC based on branch flag and PC reg and output to memory
+  // Update PC reg when instruction is requested
+
+  val pc = RegInit(0.U(64.W))
+  val firstPC = RegInit(true.B)
+  when (instrValidReg) {
+    firstPC := false.B
+    pc := io.pcOut.bits
+  }
+  when (!firstPC) {
+    when (io.branchPCIn.valid) {
+      when (io.relativeBranch) {
+        io.pcOut.bits := (pc.asSInt + io.branchPCIn.bits).asUInt
+      } .otherwise {
+        io.pcOut.bits := io.branchPCIn.bits.asUInt
+      }
+    } .otherwise {
+      io.pcOut.bits := pc + 1.U
+    }
+  } .otherwise {
+    io.pcOut.bits := pc
+  }
+
+  io.pcOut.valid := io.instr.ready
+  io.memInstr.ready := io.instr.ready
 }
 
 class DecodeModule(
@@ -354,12 +253,13 @@ class DecodeModule(
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle {
-    val instrIn = Flipped(util.Valid(UInt(iWidth.W)))
+    val instrIn = Flipped(util.Decoupled(UInt(iWidth.W)))
     val data = Flipped(util.Valid(UInt(rfWidth.W)))
     val index = Input(UInt(rfIdxWidth.W))
     val instrValids = Output(Vec(numInstrs, Bool()))
     val ops = Output(Vec(numOps, UInt(opWidth.W)))
-    val branchPC = util.Valid(UInt(64.W))
+    val branchPC = util.Valid(SInt(64.W))
+    val relativeBranch = Output(Bool())
     val instrOut = Output(UInt(iWidth.W))
   })
 
@@ -370,7 +270,7 @@ class DecodeModule(
     io.instrValids(idx) := instrValidsReg(idx)
   }
 
-  val rf = VecInit(Seq.fill(rfDepth){ RegInit(0.U(rfWidth.W)) })
+  val rf = RegInit(VecInit(Seq.fill(rfDepth){ 0.U(rfWidth.W) }))
 
   when (io.data.valid) {
     rf(io.index) := io.data.bits
@@ -380,10 +280,13 @@ class DecodeModule(
   io.ops := opsReg
 
   io.branchPC.valid := false.B
-  io.branchPC.bits := 0.U
+  io.branchPC.bits := 0.S
+  io.relativeBranch := false.B
 
   val instrReg = RegNext(io.instrIn.bits)
   io.instrOut := instrReg
+
+  io.instrIn.ready := true.B
 
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
 
@@ -391,7 +294,13 @@ class DecodeModule(
       instrValidsRegIn(idx) := instr.decode(io.instrIn.bits)
       when (instrValidsRegIn(idx)) {
         for (opIdx <- 0 until numOps) {
-          opsReg(opIdx) := rf(instr.getRFIndex(io.instrIn.bits, opIdx))
+          val rfIdx = Wire(UInt(rfIdxWidth.W))
+          rfIdx := instr.getRFIndex(io.instrIn.bits, opIdx)
+          when (io.data.valid & (rfIdx === io.index)) {
+            opsReg(opIdx) := io.data.bits
+          } .otherwise {
+            opsReg(opIdx) := rf(rfIdx)
+          }
         }
       }
     } .otherwise {
@@ -399,13 +308,15 @@ class DecodeModule(
     }
 
     when (instrValidsReg(idx)) {
+
       io.branchPC.valid := instr.branch
       io.branchPC.bits := instr.getBranchPC(instrReg, opsReg)
+      io.relativeBranch := instr.relativeBranch
     }
   }
 }
 
-class ExecuteResults(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Bundle {
+class ExecuteResults(dataWidth : Int, addrWidth : Int, rfDepth : Int, numInstrs : Int) extends Bundle {
 
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
@@ -415,7 +326,8 @@ class ExecuteResults(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Bu
   val readMem = Bool()
   val writeMem = Bool()
   val writeRF = Bool()
-  override def cloneType = (new ExecuteResults(dataWidth, addrWidth, rfDepth)).asInstanceOf[this.type]
+  val instrValids = Vec(numInstrs, Bool())
+  override def cloneType = (new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs)).asInstanceOf[this.type]
 }
 
 class ExecuteModule(
@@ -435,10 +347,10 @@ class ExecuteModule(
     val instr = Input(UInt(iWidth.W))
     val instrValids = Input(Vec(numInstrs, Bool()))
     val ops = Input(Vec(numOps, UInt(opWidth.W)))
-    val results = Output(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth))
+    val results = Output(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth, numInstrs))
   })
 
-  val results = Wire(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth))
+  val results = Wire(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth, numInstrs))
   results.readMem := false.B
   results.writeMem := false.B
   results.writeRF := false.B
@@ -461,15 +373,17 @@ class ExecuteModule(
         results.data := instr.getData(io.instr, io.ops)
       }
     }
+    results.instrValids(idx) := io.instrValids(idx)
   }
 }
 
-class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Module {
+class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Instructions) extends Module {
 
+  val numInstrs = instrs.logic.size
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle{
-    val results = Input(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth))
+    val results = Input(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth, numInstrs))
     val memAddr = util.Valid(UInt(addrWidth.W))
     val memDataOut = util.Decoupled(UInt(dataWidth.W))
     val memDataIn = Flipped(util.Decoupled(UInt(dataWidth.W)))
@@ -483,6 +397,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Modu
   val dataReg = RegInit(0.U(dataWidth.W))
   val addrReg = RegInit(0.U(addrWidth.W))
   val rfIdxInReg = RegInit(0.U(rfIdxWidth.W))
+  val instrValidsReg = RegInit(VecInit(Seq.fill(numInstrs){ false.B }))
 
   io.memAddr.valid := writeMemReg | readMemReg
   io.memAddr.bits := addrReg
@@ -498,7 +413,10 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Modu
   io.rfDataOut.bits := rfDataReg
   io.rfIndexOut := rfIdxOutReg
 
-  when (io.memDataOut.ready) {
+  val memBusy = Wire(Bool())
+  memBusy := (io.memAddr.valid | io.memDataOut.valid) & !io.memDataIn.valid
+
+  when (!memBusy) {
 
     writeMemReg := io.results.writeMem
     readMemReg := io.results.readMem
@@ -506,17 +424,24 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int) extends Modu
     dataReg := io.results.data
     addrReg := io.results.addr
     rfIdxInReg := io.results.rfIndex
+    instrValidsReg := io.results.instrValids
   }
 
   when (writeRFReg) {
     when (readMemReg) {
       rfValidReg := io.memDataIn.valid
-      rfDataReg := io.memDataIn.bits
+      for ((instr, idx) <- instrs.logic.zipWithIndex) {
+        when (instrValidsReg(idx)) {
+          rfDataReg := instr.getRFWriteData(dataReg, io.memDataIn.bits)
+        }
+      }
     } .otherwise {
       rfValidReg := true.B
       rfDataReg := dataReg
     }
     rfIdxOutReg := rfIdxInReg
+  } .otherwise {
+    rfValidReg := false.B
   }
 }
 

@@ -145,4 +145,26 @@ class ProcessingModuleTester extends ChiselFlatSpec {
       }
     }
   }
+
+  ignore should "execute one instruction per cycle" in {
+    assertTesterPasses{
+      new DecoupledTester("instrCycle") {
+
+        val dut = Module(new AdderModule(dWidth))
+
+        val events = new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U, addrVal=0.U))) ((dut.io.instr.pc, 0)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=1.U, addrVal=1.U))) ((dut.io.instr.pc, 1)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U, addrVal=10.U))) ((dut.io.instr.pc, 2)) ::
+        new InputOutputEvent((dut.io.instr .in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=1.U, addrVal=11.U)), (dut.io.data.in, 2)) ((dut.io.instr.pc, 3), (dut.io.data.out.addr, 0)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=1.U)), (dut.io.data.in, 5)) ((dut.io.instr.pc, 4), (dut.io.data.out.addr, 1)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))) ((dut.io.instr.pc, 5), (dut.io.data.out.addr, 10), (dut.io.data.out.value, 2)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U, addrVal=20.U))) ((dut.io.instr.pc, 6), (dut.io.data.out.addr, 11), (dut.io.data.out.value, 5)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=1.U, addrVal=21.U))) ((dut.io.instr.pc, 7)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ((dut.io.instr.pc, 8)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ((dut.io.instr.pc, 9), (dut.io.data.out.addr, 20), (dut.io.data.out.value, 3)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ((dut.io.instr.pc, 10), (dut.io.data.out.addr, 21), (dut.io.data.out.value, 6)) ::
+        Nil
+      }
+    }
+  }
 }

@@ -146,6 +146,33 @@ class ProcessingModuleTester extends ChiselFlatSpec {
     }
   }
 
+  ignore should "forward data to execute" in {
+    assertTesterPasses{
+      new DecoupledTester("forward") {
+        val dut = Module(new AdderModule(dWidth))
+        val events = new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U, addrVal=0.U))) ((dut.io.instr.pc, 0)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ((dut.io.instr.pc, 1)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U, addrVal=10.U))) ((dut.io.instr.pc, 2)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U)), (dut.io.data.in, 3)) ((dut.io.instr.pc, 3), (dut.io.data.out.addr, 0)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ((dut.io.instr.pc, 4), (dut.io.data.out.addr, 10), (dut.io.data.out.value, 3)) ::
+        Nil
+      }
+    }
+  }
+
+  ignore should "increment and immediately store" in {
+    assertTesterPasses{
+      new DecoupledTester("immStore") {
+        val dut = Module(new AdderModule(dWidth))
+        val events = new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))) ((dut.io.instr.pc, 0)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U, addrVal=8.U))) ((dut.io.instr.pc, 1)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ((dut.io.instr.pc, 2)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeNOP, regVal=0.U))) ((dut.io.instr.pc, 3), (dut.io.data.out.addr, 8), (dut.io.data.out.value, 1)) ::
+        Nil
+      }
+    }
+  }
+
   ignore should "execute one instruction per cycle" in {
     assertTesterPasses{
       new DecoupledTester("instrCycle") {
@@ -155,7 +182,7 @@ class ProcessingModuleTester extends ChiselFlatSpec {
         val events = new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=0.U, addrVal=0.U))) ((dut.io.instr.pc, 0)) ::
         new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncrData, regVal=1.U, addrVal=1.U))) ((dut.io.instr.pc, 1)) ::
         new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U, addrVal=10.U))) ((dut.io.instr.pc, 2)) ::
-        new InputOutputEvent((dut.io.instr .in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=1.U, addrVal=11.U)), (dut.io.data.in, 2)) ((dut.io.instr.pc, 3), (dut.io.data.out.addr, 0)) ::
+        new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=1.U, addrVal=11.U)), (dut.io.data.in, 2)) ((dut.io.instr.pc, 3), (dut.io.data.out.addr, 0)) ::
         new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=1.U)), (dut.io.data.in, 5)) ((dut.io.instr.pc, 4), (dut.io.data.out.addr, 1)) ::
         new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal=0.U))) ((dut.io.instr.pc, 5), (dut.io.data.out.addr, 10), (dut.io.data.out.value, 2)) ::
         new InputOutputEvent((dut.io.instr.in, AdderInstruction.createInt(AdderInstruction.codeStore, regVal=0.U, addrVal=20.U))) ((dut.io.instr.pc, 6), (dut.io.data.out.addr, 11), (dut.io.data.out.value, 5)) ::

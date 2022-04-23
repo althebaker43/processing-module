@@ -17,7 +17,7 @@
 
 (windmove-default-keybindings)
 
-(load-file "/root/.emacs.d/init.el")
+(load-file (concat (getenv "HOME") "/.emacs.d/init.el"))
 
 ;;;(provide .emacs)
 ;;; .emacs ends here

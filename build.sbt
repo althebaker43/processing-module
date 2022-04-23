@@ -30,7 +30,7 @@ name := "ProcessingModule"
 
 version := "3.1.1"
 
-scalaVersion := "2.12.10"
+scalaVersion := "2.12.13"
 
 //crossScalaVersions := Seq("2.11.12", "2.12.4")
 

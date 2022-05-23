@@ -90,4 +90,38 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
       }
     }
   }
+
+  it should "branch to absolue address" in {
+    executeTest("absBranch") {
+      dut : FetchModule => new PeekPokeTester(dut) {
+
+        poke(dut.io.instr.ready, 1)
+        poke(dut.io.branchPCIn.valid, 0)
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.bits, 0)
+        expect(dut.io.pcOut.valid, 1)
+
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 1)
+        poke(dut.io.branchPCIn.valid, 1)
+        poke(dut.io.branchPCIn.bits, 8)
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 8)
+
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 5)
+        poke(dut.io.branchPCIn.valid, 0)
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits, 5)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 9)
+      }
+    }
+  }
 }

@@ -214,7 +214,7 @@ class FetchModule(iWidth : Int) extends Module {
 
   val instrReg = RegInit(0.U(iWidth.W))
   val instrValid = Wire(Bool())
-  instrValid := io.memInstr.valid & memReadyReg
+  instrValid := io.memInstr.valid & memReadyReg & ~io.branchPCIn.valid
   when (instrValid) {
     instrReg := io.memInstr.bits
   }
@@ -222,19 +222,23 @@ class FetchModule(iWidth : Int) extends Module {
   io.instr.bits := instrReg
   io.instr.valid := instrValidReg
 
-  val pcReg = RegInit(~(0.U(64.W)))
+  val pcReg = RegInit(0.U(64.W))
   when (io.memInstr.valid & memReadyReg) {
-    pcReg := io.pcOut.bits
+    when (~io.branchPCIn.valid) {
+      pcReg := io.pcOut.bits + 1.U
+    } .otherwise {
+      pcReg := io.pcOut.bits
+    }
   }
   val pcValidReg = RegNext(~io.memInstr.valid | memReadyReg)
   io.pcOut.valid := pcValidReg
   when (~io.branchPCIn.valid) {
-    io.pcOut.bits := pcReg + 1.U
+    io.pcOut.bits := pcReg
   } .otherwise {
     when (~io.relativeBranch) {
-      io.pcOut.bits := (pcReg.asSInt + io.branchPCIn.bits).asUInt
-    } .otherwise {
       io.pcOut.bits := io.branchPCIn.bits.asUInt
+    } .otherwise {
+      io.pcOut.bits := (pcReg.asSInt + io.branchPCIn.bits).asUInt
     }
   }
 }

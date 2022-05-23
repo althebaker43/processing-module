@@ -8,7 +8,6 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
 
   val dWidth = 4
   val iWidth = AdderInstruction.width
-  val queueDepth = 5
 
   def nop : BigInt = AdderInstruction.createInt(AdderInstruction.codeNOP, 0.U, 0.U)
   def incr1(regVal : Int) : BigInt = AdderInstruction.createInt(AdderInstruction.codeIncr1, regVal.U, 0.U)

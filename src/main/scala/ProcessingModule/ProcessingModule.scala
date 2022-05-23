@@ -204,40 +204,39 @@ class FetchModule(iWidth : Int) extends Module {
     val instr = util.Decoupled(UInt(iWidth.W))
   })
 
-  val instrReg = RegInit(0.U(iWidth.W))
-  val instrValidReg = RegNext(io.memInstr.valid)
-  when (io.memInstr.valid) {
-    instrReg := io.memInstr.bits
+  val memReadyReg = RegInit(true.B)
+  io.memInstr.ready := memReadyReg
+  when (io.memInstr.valid & memReadyReg & ~io.instr.ready) {
+    memReadyReg := false.B
+  } .elsewhen (~io.memInstr.valid & ~memReadyReg & io.instr.ready) {
+    memReadyReg := true.B
   }
 
+  val instrReg = RegInit(0.U(iWidth.W))
+  val instrValid = Wire(Bool())
+  instrValid := io.memInstr.valid & memReadyReg
+  when (instrValid) {
+    instrReg := io.memInstr.bits
+  }
+  val instrValidReg = RegNext(instrValid)
   io.instr.bits := instrReg
   io.instr.valid := instrValidReg
 
-  // Compute current PC based on branch flag and PC reg and output to memory
-  // Update PC reg when instruction is requested
-
-  val pc = RegInit(0.U(64.W))
-  val firstPC = RegInit(true.B)
-  when (instrValidReg) {
-    firstPC := false.B
-    pc := io.pcOut.bits
+  val pcReg = RegInit(~(0.U(64.W)))
+  when (io.memInstr.valid & memReadyReg) {
+    pcReg := io.pcOut.bits
   }
-  when (!firstPC) {
-    when (io.branchPCIn.valid) {
-      when (io.relativeBranch) {
-        io.pcOut.bits := (pc.asSInt + io.branchPCIn.bits).asUInt
-      } .otherwise {
-        io.pcOut.bits := io.branchPCIn.bits.asUInt
-      }
-    } .otherwise {
-      io.pcOut.bits := pc + 1.U
-    }
+  val pcValidReg = RegNext(~io.memInstr.valid | memReadyReg)
+  io.pcOut.valid := pcValidReg
+  when (~io.branchPCIn.valid) {
+    io.pcOut.bits := pcReg + 1.U
   } .otherwise {
-    io.pcOut.bits := pc
+    when (~io.relativeBranch) {
+      io.pcOut.bits := (pcReg.asSInt + io.branchPCIn.bits).asUInt
+    } .otherwise {
+      io.pcOut.bits := io.branchPCIn.bits.asUInt
+    }
   }
-
-  io.pcOut.valid := io.instr.ready
-  io.memInstr.ready := io.instr.ready
 }
 
 class DecodeModule(

@@ -3,7 +3,7 @@ package ProcessingModule
 
 import org.scalatest.{Matchers, FlatSpec}
 import chisel3._
-import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester}
+import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester, Driver}
 import chisel3.testers.TesterDriver
 
 class FetchModuleTest extends ChiselFlatSpec {
@@ -45,6 +45,48 @@ class FetchModuleTest extends ChiselFlatSpec {
         new InputOutputEvent((dut.io.memInstr, 6), (dut.io.branchPCIn, 4)) ((dut.io.pcOut, 4), (dut.io.instr, 6)) ::
         new InputOutputEvent((dut.io.memInstr, 11), (dut.io.branchPCIn, 4)) ((dut.io.pcOut, 8), (dut.io.instr, 11)) ::
         Nil
+      }
+    }
+  }
+}
+
+class FetchModulePeekPokeTester extends ChiselFlatSpec {
+
+  val iWidth = 4
+
+  def executeTest(testName : String)(testerGen : FetchModule => PeekPokeTester[FetchModule]) : Boolean = Driver.execute(
+    Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/fetch_" + testName), () => new FetchModule(4))(testerGen)
+
+  behavior of "FetchModule"
+
+  it should "increment PC" in {
+    executeTest("incrPC"){
+      dut : FetchModule => new PeekPokeTester(dut){
+
+        poke(dut.io.instr.ready, 1)
+
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.bits, 0)
+        expect(dut.io.pcOut.valid, 1)
+
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 1)
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits, 1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 1)
+
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 4)
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits, 4)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
       }
     }
   }

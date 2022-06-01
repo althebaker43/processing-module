@@ -231,15 +231,16 @@ class FetchModule(iWidth : Int) extends Module {
     }
   }
   val pcValidReg = RegNext(~io.memInstr.valid | memReadyReg)
+  val branchValidReg = RegNext(io.branchPCIn.valid)
   io.pcOut.valid := pcValidReg
-  when (~io.branchPCIn.valid) {
-    io.pcOut.bits := pcReg
-  } .otherwise {
+  when (io.branchPCIn.valid & (~branchValidReg)) {
     when (~io.relativeBranch) {
       io.pcOut.bits := io.branchPCIn.bits.asUInt
     } .otherwise {
       io.pcOut.bits := (pcReg.asSInt + io.branchPCIn.bits).asUInt
     }
+  } .otherwise {
+    io.pcOut.bits := pcReg
   }
 }
 

@@ -74,6 +74,9 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, nu
   execute.io.instr <> decode.io.instrOut
   execute.io.instrValids <> decode.io.instrValids
   execute.io.ops <> decode.io.ops
+  decode.io.exData.bits := execute.io.results.data
+  decode.io.exData.valid := execute.io.results.writeRF
+  decode.io.exIndex := execute.io.results.addr
 
   val memory = Module(new MemoryModule(dWidth, dAddrWidth, rfDepth, instrs))
   memory.io.results <> execute.io.results
@@ -260,6 +263,8 @@ class DecodeModule(
     val instrIn = Flipped(util.Decoupled(UInt(iWidth.W)))
     val data = Flipped(util.Valid(UInt(rfWidth.W)))
     val index = Input(UInt(rfIdxWidth.W))
+    val exData = Flipped(util.Valid(UInt(rfWidth.W)))
+    val exIndex = Input(UInt(rfIdxWidth.W))
     val instrValids = Output(Vec(numInstrs, Bool()))
     val ops = Output(Vec(numOps, UInt(opWidth.W)))
     val branchPC = util.Valid(SInt(64.W))
@@ -275,12 +280,18 @@ class DecodeModule(
   }
 
   val rf = RegInit(VecInit(Seq.fill(rfDepth){ 0.U(rfWidth.W) }))
+  val rfWritten = RegInit(VecInit(Seq.fill(rfDepth){ true.B }))
 
   when (io.data.valid) {
     rf(io.index) := io.data.bits
+    rfWritten(io.index) := true.B
   }
 
-  val opsReg = Reg(Vec(numOps, UInt(opWidth.W)))
+  val ops = Wire(Vec(numOps, UInt(opWidth.W)))
+  for (opIdx <- 0 until numOps) {
+    ops(opIdx) := 0.U(opWidth.W)
+  }
+  val opsReg = RegNext(ops)
   io.ops := opsReg
 
   io.branchPC.valid := false.B
@@ -301,10 +312,19 @@ class DecodeModule(
           val rfIdx = Wire(UInt(rfIdxWidth.W))
           rfIdx := instr.getRFIndex(io.instrIn.bits, opIdx)
           when (io.data.valid & (rfIdx === io.index)) {
-            opsReg(opIdx) := io.data.bits
+            ops(opIdx) := io.data.bits
+          } .elsewhen(io.exData.valid & (rfIdx === io.exIndex)) {
+            ops(opIdx) := io.exData.bits
           } .otherwise {
-            opsReg(opIdx) := rf(rfIdx)
+            when (rfWritten(rfIdx)) {
+              ops(opIdx) := rf(rfIdx)
+            } .otherwise {
+              io.instrIn.ready := false.B
+            }
           }
+        }
+        when (instr.writeRF()) {
+          rfWritten(instr.getWriteIndex(io.instrIn.bits, ops)) := false.B
         }
       }
     } .otherwise {

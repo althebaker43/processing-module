@@ -91,7 +91,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
     }
   }
 
-  it should "branch to absolue address" in {
+  it should "branch to absolute address" in {
     executeTest("absBranch") {
       dut : FetchModule => new PeekPokeTester(dut) {
 

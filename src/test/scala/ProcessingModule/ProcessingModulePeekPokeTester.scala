@@ -33,20 +33,39 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     }
   }
 
-  // TODO: resolve RAW hazard
   it should "increment by 1" in {
     executeTest("incr1"){
       dut : AdderModule => new DecoupledPeekPokeTester(dut){
         def cycles = List(
           List(new InstrReq(addr = 0)), // fetch 0
-          List(new InstrRcv(instr = incr1(0))), // receive incr1
-          List(new InstrReq(addr = 1)), // decode incr1, fetch 1
-          Nil, // execute incr1
-          Nil, // memory incr1
-          List(new InstrRcv(instr = store(0, 6))), // receive store, writeback incr1
-          List(new InstrReq(addr = 2)), // decode store, fetch 2
-          List(new InstrRcv(instr = nop)), // execute store, receive nop
-          List(new StoreReq(addr = 6, data = 1), new InstrReq(addr = 3)) // store to 6, fetch 3
+          List(new InstrRcv(instr = incr1(0)), new InstrReq(addr = 1)), // receive incr1, fetch 1
+          Nil, // decode incr1
+          List(new InstrRcv(instr = store(0, 6))), // receive store, execute incr1
+          Nil, // decode store, memory incr1
+          Nil, // execute store, writeback incr1
+          List(new StoreReq(addr = 6, data = 1)), // store to 6
+          List(new InstrReq(addr = 2)), // fetch 2
+          List(new InstrRcv(instr = nop)), // receive nop
+          List(new InstrReq(addr = 3)) // fetch 3
+        )
+      }
+    }
+  }
+
+  // TODO: resolve RAW hazard
+  ignore should "increment by 1 with a stall" in {
+    executeTest("incr1stall"){
+      dut : AdderModule => new DecoupledPeekPokeTester(dut){
+        def cycles = List(
+          List(new InstrReq(addr = 0)), // fetch 0
+          List(new InstrRcv(instr = incr1(0)), new InstrReq(addr = 1)), // receive incr1, fetch 1
+          List(new InstrRcv(instr = store(0, 6))), // receive store, decode incr1
+          Nil, // stall store, execute incr1
+          Nil, // decode store, memory incr1
+          Nil, // execute store, writeback incr1
+          List(new StoreReq(addr = 6, data = 1), new InstrReq(addr = 2)), // store to 6, fetch 2
+          List(new InstrRcv(instr = nop)), // receive nop
+          List(new InstrReq(addr = 3)) // fetch 3
         )
       }
     }

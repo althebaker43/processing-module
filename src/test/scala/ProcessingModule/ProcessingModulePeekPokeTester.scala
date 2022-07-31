@@ -15,8 +15,10 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
   def store(regVal : Int, addrVal : Int) : BigInt = AdderInstruction.createInt(AdderInstruction.codeStore, regVal.U, addrVal.U)
   def bgt(regVal : Int) : BigInt = AdderInstruction.createInt(AdderInstruction.codeBGT, regVal.U, 0.U)
 
-  def executeTest(testName : String)(testerGen : AdderModule => DecoupledPeekPokeTester[AdderModule]) : Boolean = Driver.execute(
-    Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/adder_" + testName), () => new AdderModule(4))(testerGen)
+  def executeTest(testName : String)(testerGen : AdderModule => DecoupledPeekPokeTester[AdderModule]) = {
+    val pass = Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/adder_" + testName), () => new AdderModule(4))(testerGen)
+    assert(pass)
+  }
 
   behavior of "AdderModule"
 
@@ -52,8 +54,7 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     }
   }
 
-  // TODO: resolve RAW hazard
-  ignore should "increment by 1 with a stall" in {
+  it should "increment by 1 with a stall" in {
     executeTest("incr1stall"){
       dut : AdderModule => new DecoupledPeekPokeTester(dut){
         def cycles = List(

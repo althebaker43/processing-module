@@ -15,9 +15,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
   def store(regVal : Int, addrVal : Int) : BigInt = AdderInstruction.createInt(AdderInstruction.codeStore, regVal.U, addrVal.U)
   def bgt(regVal : Int) : BigInt = AdderInstruction.createInt(AdderInstruction.codeBGT, regVal.U, 0.U)
 
-  def executeTest(testName : String)(testerGen : AdderModule => DecoupledPeekPokeTester[AdderModule]) = {
-    val pass = Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/adder_" + testName), () => new AdderModule(4))(testerGen)
-    assert(pass)
+  def executeTest(testName : String)(testerGen : AdderModule => DecoupledPeekPokeTester[AdderModule]) : Boolean = {
+    Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/adder_" + testName), () => new AdderModule(4))(testerGen)
   }
 
   behavior of "AdderModule"
@@ -32,7 +31,7 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
           List(new InstrRcv(instr = nop)), // receive nop, execute store
           List(new StoreReq(addr = 3, data = 0), new InstrReq(addr = 2))) // store to 3, fetch 2
       }
-    }
+    } should be (true)
   }
 
   it should "increment by 1" in {
@@ -51,7 +50,7 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
           List(new InstrReq(addr = 3)) // fetch 3
         )
       }
-    }
+    } should be (true)
   }
 
   it should "increment by 1 with a stall" in {
@@ -69,6 +68,6 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
           List(new InstrReq(addr = 3)) // fetch 3
         )
       }
-    }
+    } should be (true)
   }
 }

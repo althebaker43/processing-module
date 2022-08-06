@@ -3,7 +3,7 @@ package ProcessingModule
 
 import org.scalatest.{Matchers, FlatSpec}
 import chisel3._
-import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester}
+import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester, Driver}
 
 class DecodeModuleTest extends ChiselFlatSpec {
 
@@ -17,6 +17,8 @@ class DecodeModuleTest extends ChiselFlatSpec {
             case 1 => 0.U
           }
         }
+        override def writeRF() : Bool = true.B
+        override def getWriteIndex( instr : UInt, ops : Vec[UInt] ) : UInt = instr(4,2)
         def execute ( instr : UInt ) : Unit = Unit
       } ::
     new InstructionLogic("add", dataInDepend=false, dataOutDepend=false) {
@@ -46,11 +48,16 @@ class DecodeModuleTest extends ChiselFlatSpec {
     Nil
   }
 
+  def executeTest(testName : String)(testerGen : DecodeModule => PeekPokeTester[DecodeModule]) : Boolean = {
+    Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/decode_" + testName),
+      () => new DecodeModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=8))(testerGen)
+  }
+
   behavior of "DecodeModule"
 
   it should "decode add" in {
-    chisel3.iotesters.Driver(() => new DecodeModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=8)){ dut =>
-      new PeekPokeTester(dut) {
+    executeTest("add") {
+      dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
@@ -64,10 +71,13 @@ class DecodeModuleTest extends ChiselFlatSpec {
         expect(dut.io.instrOut, "b000_001_01".U)
 
         poke(dut.io.instrIn.bits, "b011_001_10".U)
+        poke(dut.io.data.bits, 1.U)
+        poke(dut.io.data.valid, true.B)
+        poke(dut.io.index, 1.U)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), true.B)
-        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(0), 1.U)
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut, "b011_001_10".U)
       }
@@ -75,8 +85,8 @@ class DecodeModuleTest extends ChiselFlatSpec {
   }
 
   it should "write back" in {
-    chisel3.iotesters.Driver(() => new DecodeModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=8)){ dut =>
-      new PeekPokeTester(dut) {
+    executeTest("write_back") {
+      dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
 
@@ -95,24 +105,69 @@ class DecodeModuleTest extends ChiselFlatSpec {
   }
 
   it should "return branch PC" in {
-    chisel3.iotesters.Driver(() => new DecodeModule(iWidth=8, instrs=instrs, numOps=2, opWidth=8, rfWidth=8, rfDepth=8)){ dut =>
-      new PeekPokeTester(dut) {
+    executeTest("branch") {
+      dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
 
         poke(dut.io.instrIn.bits, "b000_010_11".U)
         poke(dut.io.data.valid, true.B)
-        poke(dut.io.data.bits, 12)
+        poke(dut.io.data.bits, 6)
         poke(dut.io.index, 2)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.instrValids(2), true.B)
-        expect(dut.io.ops(0), 12.U)
+        expect(dut.io.ops(0), 6.U)
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut, "b000_010_11".U)
         expect(dut.io.branchPC.valid, true.B)
-        expect(dut.io.branchPC.bits, 12.S)
+        expect(dut.io.branchPC.bits, 6.S)
+      }
+    } should be(true)
+  }
+
+  it should "stall on hazard" in {
+    executeTest("stall"){
+      dut => new PeekPokeTester(dut) {
+
+        poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.data.valid, false.B)
+
+        poke(dut.io.instrIn.bits, "b000_001_01".U)
+        step(1)
+        expect(dut.io.instrValids(0), true.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+
+        poke(dut.io.data.bits, 1.U)
+        poke(dut.io.data.valid, true.B)
+        poke(dut.io.index, 1.U)
+        step(1)
+        expect(dut.io.instrValids(0), true.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 1.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
       }
     } should be(true)
   }

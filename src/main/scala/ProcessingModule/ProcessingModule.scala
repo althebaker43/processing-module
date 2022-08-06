@@ -274,8 +274,10 @@ class DecodeModule(
 
   val instrValidsReg = Reg(Vec(numInstrs, Bool()))
   val instrValidsRegIn = Wire(Vec(numInstrs, Bool()))
+  val hazard = Wire(Bool())
+  val hazardReg = RegInit(false.B)
   for (idx <- 0 until numInstrs) {
-    instrValidsReg(idx) := instrValidsRegIn(idx)
+    instrValidsReg(idx) := instrValidsRegIn(idx) & !hazard
     io.instrValids(idx) := instrValidsReg(idx)
   }
 
@@ -298,19 +300,31 @@ class DecodeModule(
   io.branchPC.bits := 0.S
   io.relativeBranch := false.B
 
-  val instrReg = RegNext(io.instrIn.bits)
-  io.instrOut := instrReg
+  val instrReg = Reg(util.Valid(UInt(iWidth.W)))
+  instrReg.bits := io.instrIn.bits
+  instrReg.valid := io.instrIn.valid
+  io.instrOut := instrReg.bits
 
   io.instrIn.ready := true.B
+  hazard := false.B
+  hazardReg := hazard
+
+  val instrIn = Wire(util.Valid(UInt(iWidth.W)))
+  when (!hazardReg) {
+    instrIn.bits := io.instrIn.bits
+    instrIn.valid := io.instrIn.valid
+  } .otherwise {
+    instrIn := instrReg
+  }
 
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
 
-    when (io.instrIn.valid) {
-      instrValidsRegIn(idx) := instr.decode(io.instrIn.bits)
+    when (instrIn.valid) {
+      instrValidsRegIn(idx) := instr.decode(instrIn.bits)
       when (instrValidsRegIn(idx)) {
         for (opIdx <- 0 until numOps) {
           val rfIdx = Wire(UInt(rfIdxWidth.W))
-          rfIdx := instr.getRFIndex(io.instrIn.bits, opIdx)
+          rfIdx := instr.getRFIndex(instrIn.bits, opIdx)
           when (io.data.valid & (rfIdx === io.index)) {
             ops(opIdx) := io.data.bits
           } .elsewhen(io.exData.valid & (rfIdx === io.exIndex)) {
@@ -320,11 +334,12 @@ class DecodeModule(
               ops(opIdx) := rf(rfIdx)
             } .otherwise {
               io.instrIn.ready := false.B
+              hazard := true.B
             }
           }
         }
         when (instr.writeRF()) {
-          rfWritten(instr.getWriteIndex(io.instrIn.bits, ops)) := false.B
+          rfWritten(instr.getWriteIndex(instrIn.bits, ops)) := false.B
         }
       }
     } .otherwise {
@@ -334,7 +349,7 @@ class DecodeModule(
     when (instrValidsReg(idx)) {
 
       io.branchPC.valid := instr.branch
-      io.branchPC.bits := instr.getBranchPC(instrReg, opsReg)
+      io.branchPC.bits := instr.getBranchPC(instrReg.bits, opsReg)
       io.relativeBranch := instr.relativeBranch
     }
   }

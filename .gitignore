@@ -346,3 +346,5 @@ hs_err_pid*
 project/metals.sbt
 
 metals.sbt
+
+setup.el

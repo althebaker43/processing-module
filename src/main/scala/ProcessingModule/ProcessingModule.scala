@@ -10,6 +10,8 @@ abstract class Instructions {
 
 abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, val dataOutDepend : Boolean) {
 
+  val numOps : Int = 0
+
   def decode( instr : UInt) : Bool
 
   def getRFIndex(instr : UInt, opIndex : Int) : UInt = 0.U
@@ -75,8 +77,8 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, nu
   execute.io.instrValids <> decode.io.instrValids
   execute.io.ops <> decode.io.ops
   decode.io.exData.bits := execute.io.results.data
-  decode.io.exData.valid := execute.io.results.writeRF
-  decode.io.exIndex := execute.io.results.addr
+  decode.io.exData.valid := execute.io.results.writeRF & ~execute.io.results.readMem & ~execute.io.results.writeMem
+  decode.io.exIndex := execute.io.results.rfIndex
 
   val memory = Module(new MemoryModule(dWidth, dAddrWidth, rfDepth, instrs))
   memory.io.results <> execute.io.results
@@ -131,6 +133,7 @@ class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstructio
         def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("incr1", dataInDepend=false, dataOutDepend=false) {
+        override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncr1
         override def getRFIndex(instr : UInt, opIndex : Int) : UInt = {
           opIndex match {
@@ -144,6 +147,7 @@ class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstructio
         def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
+        override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
         override def getRFIndex(instr : UInt, opIndex : Int) : UInt = {
           opIndex match {
@@ -159,6 +163,7 @@ class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstructio
         def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
+        override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeStore
         override def getRFIndex(instr : UInt, opIndex : Int) = {
           opIndex match {
@@ -172,6 +177,7 @@ class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstructio
         def execute ( instr : UInt ) : Unit = Unit
       } ::
       new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
+        override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeBGT
         override def getRFIndex(instr : UInt, opIndex : Int) = {
           opIndex match {
@@ -207,7 +213,7 @@ class FetchModule(iWidth : Int) extends Module {
     val instr = util.Decoupled(UInt(iWidth.W))
   })
 
-  val memReadyReg = RegInit(true.B)
+  val memReadyReg = RegInit(false.B)
   io.memInstr.ready := memReadyReg
   when (io.memInstr.valid & memReadyReg & ~io.instr.ready) {
     memReadyReg := false.B
@@ -287,6 +293,9 @@ class DecodeModule(
   when (io.data.valid) {
     rf(io.index) := io.data.bits
     rfWritten(io.index) := true.B
+  } .elsewhen (io.exData.valid) {
+    rf(io.exIndex) := io.exData.bits
+    rfWritten(io.exIndex) := true.B
   }
 
   val ops = Wire(Vec(numOps, UInt(opWidth.W)))
@@ -322,7 +331,7 @@ class DecodeModule(
     when (instrIn.valid) {
       instrValidsRegIn(idx) := instr.decode(instrIn.bits)
       when (instrValidsRegIn(idx)) {
-        for (opIdx <- 0 until numOps) {
+        for (opIdx <- 0 until instr.numOps) {
           val rfIdx = Wire(UInt(rfIdxWidth.W))
           rfIdx := instr.getRFIndex(instrIn.bits, opIdx)
           when (io.data.valid & (rfIdx === io.index)) {
@@ -338,7 +347,7 @@ class DecodeModule(
             }
           }
         }
-        when (instr.writeRF()) {
+        when (instr.writeRF) {
           rfWritten(instr.getWriteIndex(instrIn.bits, ops)) := false.B
         }
       }
@@ -396,17 +405,12 @@ class ExecuteModule(
   results.addr := 0.U
   results.rfIndex := 0.U
   results.data := 0.U
-
-  val resultsReg = RegNext(results)
-
-  io.results <> resultsReg
-
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
     when (io.instrValids(idx)) {
       results.readMem := instr.readMemory
       results.writeMem := instr.writeMemory
       results.writeRF := instr.writeRF
-      when (results.readMem | results.writeMem | results.writeRF) {
+      when (instr.readMemory | instr.writeMemory | instr.writeRF) {
         results.addr := instr.getAddress(io.instr, io.ops)
         results.rfIndex := instr.getWriteIndex(io.instr, io.ops)
         results.data := instr.getData(io.instr, io.ops)
@@ -414,6 +418,9 @@ class ExecuteModule(
     }
     results.instrValids(idx) := io.instrValids(idx)
   }
+
+  val resultsReg = RegNext(results)
+  io.results := resultsReg
 }
 
 class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Instructions) extends Module {

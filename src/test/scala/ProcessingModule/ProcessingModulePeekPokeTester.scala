@@ -23,7 +23,7 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
 
   it should "initialize correctly" in {
     executeTest("init"){
-      dut : AdderModule => new DecoupledPeekPokeTester(dut){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = List(
           List(new InstrReq(addr = 0)), // fetch 0
           List(new InstrRcv(instr = store(0, 3))), // receive store
@@ -34,9 +34,25 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
+  it should "process one nop per cycle" in {
+    executeTest("nop"){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
+        def cycles = List(
+          List(new InstrReq(addr = 0)),
+          List(new InstrReq(addr = 1), new InstrRcv(instr = nop)),
+          List(new InstrReq(addr = 2), new InstrRcv(instr = nop)),
+          List(new InstrReq(addr = 3), new InstrRcv(instr = nop)),
+          List(new InstrReq(addr = 4), new InstrRcv(instr = nop)),
+          List(new InstrReq(addr = 5), new InstrRcv(instr = nop)),
+          List(new InstrReq(addr = 6), new InstrRcv(instr = nop)),
+          List(new InstrReq(addr = 7), new InstrRcv(instr = nop)))
+      }
+    } should be (true)
+  }
+
   it should "increment by 1" in {
     executeTest("incr1"){
-      dut : AdderModule => new DecoupledPeekPokeTester(dut){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = List(
           List(new InstrReq(addr = 0)), // fetch 0
           List(new InstrRcv(instr = incr1(0)), new InstrReq(addr = 1)), // receive incr1, fetch 1
@@ -53,9 +69,25 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
+  ignore should "process one incr1 per cycle" in {
+    executeTest("incr1_cpi1"){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
+        def cycles = List(
+          List(new InstrReq(addr = 0)),
+          List(new InstrReq(addr = 1), new InstrRcv(instr = incr1(0))),
+          List(new InstrReq(addr = 2), new InstrRcv(instr = incr1(1))),
+          List(new InstrReq(addr = 3), new InstrRcv(instr = incr1(0))),
+          List(new InstrReq(addr = 4), new InstrRcv(instr = incr1(1))),
+          List(new InstrReq(addr = 5), new InstrRcv(instr = incr1(0))),
+          List(new InstrReq(addr = 6), new InstrRcv(instr = incr1(1))),
+          List(new InstrReq(addr = 7), new InstrRcv(instr = incr1(0))))
+      }
+    } should be (true)
+  }
+
   it should "increment by 1 with a stall" in {
     executeTest("incr1stall"){
-      dut : AdderModule => new DecoupledPeekPokeTester(dut){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = List(
           List(new InstrReq(addr = 0)), // fetch 0
           List(new InstrRcv(instr = incr1(0)), new InstrReq(addr = 1)), // receive incr1, fetch 1

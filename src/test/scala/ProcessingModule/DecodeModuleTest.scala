@@ -10,6 +10,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
   val instrs = new Instructions {
     def logic =
       new InstructionLogic("incr", dataInDepend=false, dataOutDepend=false) {
+        override val numOps = 1
         def decode ( instr : UInt ) : Bool =  instr(1,0) === 1.U
         override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
           opIndex match {
@@ -22,6 +23,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
         def execute ( instr : UInt ) : Unit = Unit
       } ::
     new InstructionLogic("add", dataInDepend=false, dataOutDepend=false) {
+      override val numOps = 2
       def decode ( instr : UInt ) : Bool = instr(1,0) === 2.U
       override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
         opIndex match {
@@ -32,6 +34,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
       def execute ( instr : UInt ) : Unit  = Unit
     } ::
     new InstructionLogic("beq", dataInDepend=false, dataOutDepend=false) {
+      override val numOps = 1
       def decode ( instr : UInt ) : Bool = instr(1,0) === 3.U
       override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
         opIndex match {

@@ -69,7 +69,7 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  ignore should "process one incr1 per cycle" in {
+  it should "process one incr1 per cycle" in {
     executeTest("incr1_cpi1"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = List(

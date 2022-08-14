@@ -395,10 +395,10 @@ class ExecuteModule(
     val instr = Input(UInt(iWidth.W))
     val instrValids = Input(Vec(numInstrs, Bool()))
     val ops = Input(Vec(numOps, UInt(opWidth.W)))
-    val results = Output(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth, numInstrs))
+    val results = Output(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
   })
 
-  val results = Wire(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth, numInstrs))
+  val results = Wire(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
   results.readMem := false.B
   results.writeMem := false.B
   results.writeRF := false.B
@@ -429,7 +429,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle{
-    val results = Input(new ExecuteResults(dataWidth, addrWidth, rfIdxWidth, numInstrs))
+    val results = Input(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
     val memAddr = util.Valid(UInt(addrWidth.W))
     val memDataOut = util.Decoupled(UInt(dataWidth.W))
     val memDataIn = Flipped(util.Decoupled(UInt(dataWidth.W)))

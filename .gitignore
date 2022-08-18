@@ -348,3 +348,8 @@ project/metals.sbt
 metals.sbt
 
 setup.el
+
+docker/depend_cache/coursier
+docker/depend_cache/dconf
+docker/depend_ivy_cache/cache
+docker/depend_ivy_cache/exclude_classifiers

@@ -1,0 +1,75 @@
+[*]
+[*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
+[*] Sat Sep  3 16:47:49 2022
+[*]
+[dumpfile] "/home/allen/processing-module/test_run_dir/adder_init/ProcessingModule.ProcessingModulePeekPokeTester1175490605/AdderModule.vcd"
+[dumpfile_mtime] "Sat Sep  3 16:38:26 2022"
+[dumpfile_size] 14398
+[savefile] "/home/allen/processing-module/adder_init.gtkw"
+[timestart] 0
+[size] 2214 1237
+[pos] -1 -1
+*-4.884019 81 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] AdderModule.
+[sst_width] 340
+[signals_width] 426
+[sst_expanded] 1
+[sst_vpaned_height] 376
+@28
+AdderModule.clock
+AdderModule.reset
+AdderModule.io_data_out_addr_valid
+@22
+AdderModule.io_data_out_addr_bits[3:0]
+@28
+AdderModule.io_data_out_value_valid
+@22
+AdderModule.io_data_out_value_bits[3:0]
+@28
+AdderModule.io_data_out_value_ready
+AdderModule.io_instr_in_ready
+@22
+AdderModule.io_instr_in_bits[7:0]
+@200
+-
+@22
+AdderModule.fetch.io_instr_bits[7:0]
+@28
+AdderModule.fetch.io_instr_valid
+@200
+-
+@22
+AdderModule.decode.io_instrOut[7:0]
+@28
+AdderModule.decode.io_instrValids_0
+AdderModule.decode.io_instrValids_1
+AdderModule.decode.io_instrValids_2
+AdderModule.decode.io_instrValids_3
+AdderModule.decode.io_instrValids_4
+@200
+-
+@22
+AdderModule.execute.io_results_addr[3:0]
+@28
+AdderModule.execute.io_results_instrValids_0
+AdderModule.execute.io_results_instrValids_1
+AdderModule.execute.io_results_instrValids_2
+AdderModule.execute.io_results_instrValids_3
+AdderModule.execute.io_results_instrValids_4
+AdderModule.execute.io_results_writeMem
+@200
+-
+@28
+AdderModule.memory.memBusy
+AdderModule.memory.writeMem
+AdderModule.memory.io_results_writeMem
+AdderModule.memory.writeRF
+AdderModule.memory.io_memAddr_valid
+@22
+AdderModule.memory.io_memAddr_bits[3:0]
+@28
+AdderModule.memory.io_memDataIn_ready
+@200
+-
+[pattern_trace] 1
+[pattern_trace] 0

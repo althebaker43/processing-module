@@ -429,6 +429,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle{
+    // TODO: decouple results in case of memory latency
     val results = Input(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
     val memAddr = util.Valid(UInt(addrWidth.W))
     val memDataOut = util.Decoupled(UInt(dataWidth.W))
@@ -445,11 +446,19 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val rfIdxInReg = RegInit(0.U(rfIdxWidth.W))
   val instrValidsReg = RegInit(VecInit(Seq.fill(numInstrs){ false.B }))
 
-  io.memAddr.valid := writeMemReg | readMemReg
-  io.memAddr.bits := addrReg
-  io.memDataOut.valid := writeMemReg
-  io.memDataOut.bits := dataReg
-  io.memDataIn.ready := readMemReg
+  val writeMem = Wire(Bool())
+  val readMem = Wire(Bool())
+  val writeRF = Wire(Bool())
+  val data = Wire(UInt(dataWidth.W))
+  val addr = Wire(UInt(addrWidth.W))
+  val rfIdxIn = Wire(UInt(rfIdxWidth.W))
+  val instrValids = Wire(Vec(numInstrs, Bool()))
+
+  io.memAddr.valid := writeMem | readMem
+  io.memAddr.bits := addr
+  io.memDataOut.valid := writeMem
+  io.memDataOut.bits := data
+  io.memDataIn.ready := readMem
 
   val rfValidReg = RegInit(false.B)
   val rfDataReg = RegInit(0.U(dataWidth.W))
@@ -460,32 +469,59 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   io.rfIndexOut := rfIdxOutReg
 
   val memBusy = Wire(Bool())
-  memBusy := (io.memAddr.valid | io.memDataOut.valid) & !io.memDataIn.valid
+  val memBusyReg = RegInit(false.B)
+  when (io.memAddr.valid) {
+    when (io.memDataOut.valid) {
+      memBusy := !io.memDataOut.ready
+    } .otherwise {
+      memBusy := !io.memDataIn.valid
+    }
+  } .otherwise {
+    memBusy := false.B
+  }
+  memBusyReg := memBusy
 
-  when (!memBusy) {
-
-    writeMemReg := io.results.writeMem
-    readMemReg := io.results.readMem
-    writeRFReg := io.results.writeRF
-    dataReg := io.results.data
-    addrReg := io.results.addr
-    rfIdxInReg := io.results.rfIndex
-    instrValidsReg := io.results.instrValids
+  when (memBusy) {
+    writeMemReg := writeMem
+    readMemReg := readMem
+    writeRFReg := writeRF
+    dataReg := data
+    addrReg := addr
+    rfIdxInReg := rfIdxIn
+    instrValidsReg := instrValids
   }
 
-  when (writeRFReg) {
-    when (readMemReg) {
+  when (!memBusyReg) {
+    writeMem := io.results.writeMem
+    readMem := io.results.readMem
+    writeRF := io.results.writeRF
+    data := io.results.data
+    addr := io.results.addr
+    rfIdxIn := io.results.rfIndex
+    instrValids := io.results.instrValids
+  } .otherwise {
+    writeMem := writeMemReg
+    readMem := readMemReg
+    writeRF := writeRFReg
+    data := dataReg
+    addr := addrReg
+    rfIdxIn := rfIdxInReg
+    instrValids := instrValidsReg
+  }
+
+  when (writeRF) {
+    when (readMem) {
       rfValidReg := io.memDataIn.valid
       for ((instr, idx) <- instrs.logic.zipWithIndex) {
-        when (instrValidsReg(idx)) {
-          rfDataReg := instr.getRFWriteData(dataReg, io.memDataIn.bits)
+        when (instrValids(idx)) {
+          rfDataReg := instr.getRFWriteData(data, io.memDataIn.bits)
         }
       }
     } .otherwise {
       rfValidReg := true.B
-      rfDataReg := dataReg
+      rfDataReg := data
     }
-    rfIdxOutReg := rfIdxInReg
+    rfIdxOutReg := rfIdxIn
   } .otherwise {
     rfValidReg := false.B
   }

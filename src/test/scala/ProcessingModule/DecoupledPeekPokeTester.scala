@@ -14,14 +14,14 @@ abstract class DecoupledPeekPokeTester[T <: ProcessingModule](dut : T) extends P
 
   def cycles : Seq[Seq[ProcessingModuleEvent]]
 
-  for (cycle <- cycles) {
+  for ((cycle, cycleIdx) <- cycles.zipWithIndex) {
 
-    println("tester: Starting new cycle")
+    println("tester: Starting cycle " + cycleIdx)
 
     // Default input values
     poke(dut.io.instr.in.valid, 0)
     poke(dut.io.data.in.valid, 0)
-    poke(dut.io.data.out.value.ready, 1)
+    poke(dut.io.data.out.value.ready, 0)
 
     // Poke inputs
     for (event <- cycle) {
@@ -40,16 +40,24 @@ abstract class DecoupledPeekPokeTester[T <: ProcessingModule](dut : T) extends P
 
         case storeReq : StoreReq => {
           println("tester: Store request for address " + storeReq.addr + " with data " + storeReq.data)
+          poke(dut.io.data.out.value.ready, 1)
+          expect(dut.io.data.out.addr.valid, 1)
+          expect(dut.io.data.out.value.valid, 1)
+          expect(dut.io.data.out.addr.bits, storeReq.addr)
+          expect(dut.io.data.out.value.bits, storeReq.data)
         }
 
         case loadReq : LoadReq => {
           println("tester: Load request for address " + loadReq.addr)
+          expect(dut.io.data.out.addr.valid, 1)
+          expect(dut.io.data.out.addr.bits, loadReq.addr)
         }
 
         case loadRcv : LoadRcv => {
           println("tester: Receiving load data " + loadRcv.data)
           poke(dut.io.data.in.valid, 1)
           poke(dut.io.data.in.bits, loadRcv.data)
+          expect(dut.io.data.in.ready, 1)
         }
       }
     }
@@ -71,19 +79,19 @@ abstract class DecoupledPeekPokeTester[T <: ProcessingModule](dut : T) extends P
         }
 
         case storeReq : StoreReq => {
-          expect(dut.io.data.out.addr.valid, 1)
-          expect(dut.io.data.out.value.valid, 1)
-          expect(dut.io.data.out.addr.bits, storeReq.addr)
-          expect(dut.io.data.out.value.bits, storeReq.data)
+          // expect(dut.io.data.out.addr.valid, 1)
+          // expect(dut.io.data.out.value.valid, 1)
+          // expect(dut.io.data.out.addr.bits, storeReq.addr)
+          // expect(dut.io.data.out.value.bits, storeReq.data)
         }
 
         case loadReq : LoadReq => {
-          expect(dut.io.data.out.addr.valid, 1)
-          expect(dut.io.data.out.addr.bits, loadReq.addr)
+          // expect(dut.io.data.out.addr.valid, 1)
+          // expect(dut.io.data.out.addr.bits, loadReq.addr)
         }
 
         case loadRcv : LoadRcv => {
-          expect(dut.io.data.in.ready, 1)
+          // expect(dut.io.data.in.ready, 1)
         }
       }
     }

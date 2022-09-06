@@ -63,6 +63,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
       dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.instrReady, true.B)
         poke(dut.io.data.valid, false.B)
 
         poke(dut.io.instrIn.bits, "b000_001_01".U)
@@ -92,6 +93,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
       dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.instrReady, true.B)
 
         poke(dut.io.instrIn.bits, "b000_001_01".U)
         poke(dut.io.data.valid, true.B)
@@ -112,6 +114,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
       dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.instrReady, true.B)
 
         poke(dut.io.instrIn.bits, "b000_010_11".U)
         poke(dut.io.data.valid, true.B)
@@ -135,6 +138,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
       dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.instrReady, true.B)
         poke(dut.io.data.valid, false.B)
 
         poke(dut.io.instrIn.bits, "b000_001_01".U)
@@ -169,6 +173,45 @@ class DecodeModuleTest extends ChiselFlatSpec {
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 1.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+      }
+    } should be(true)
+  }
+
+  it should "stall on output not ready" in {
+    executeTest("stallOutput"){
+      dut => new PeekPokeTester(dut) {
+
+        poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.instrReady, false.B)
+        poke(dut.io.data.valid, false.B)
+
+        poke(dut.io.instrIn.bits, "b000_001_01".U)
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+
+        poke(dut.io.instrReady, true.B)
+        step(1)
+        expect(dut.io.instrValids(0), true.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut, "b000_001_01".U)
       }

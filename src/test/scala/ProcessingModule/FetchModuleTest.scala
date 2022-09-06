@@ -88,7 +88,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 2)
       }
-    }
+    } should be (true)
   }
 
   it should "branch to absolute address" in {
@@ -122,7 +122,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 9)
       }
-    }
+    } should be (true)
   }
 
   it should "branch to relative address" in {
@@ -166,6 +166,72 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 10)
       }
-    }
+    } should be (true)
+  }
+
+  it should "stall when output not ready" in {
+    executeTest("stallOutput") {
+      dut : FetchModule => new PeekPokeTester(dut) {
+
+        poke(dut.io.instr.ready, 1)
+
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.bits, 0)
+        expect(dut.io.pcOut.valid, 1)
+
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 1)
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits, 1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 1)
+
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 4)
+        poke(dut.io.instr.ready, 0)
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.memInstr.ready, 0)
+        poke(dut.io.memInstr.valid, 0)
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.memInstr.ready, 0)
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.memInstr.ready, 0)
+
+        poke(dut.io.instr.ready, 1)
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.memInstr.ready, 1)
+
+        poke(dut.io.memInstr.valid, 1)
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits, 4)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.memInstr.ready, 1)
+
+        poke(dut.io.memInstr.bits, 6)
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits, 6)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 3)
+        expect(dut.io.memInstr.ready, 1)
+      }
+    } should be (true)
   }
 }

@@ -75,6 +75,7 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, nu
   val execute = Module(new ExecuteModule(iWidth, instrs, numOps, dWidth, dWidth, dAddrWidth, rfDepth))
   execute.io.instr <> decode.io.instrOut
   execute.io.instrValids <> decode.io.instrValids
+  decode.io.instrReady := execute.io.instrReady
   execute.io.ops <> decode.io.ops
   decode.io.exData.bits := execute.io.results.data
   decode.io.exData.valid := execute.io.results.writeRF & ~execute.io.results.readMem & ~execute.io.results.writeMem
@@ -82,6 +83,7 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, nu
 
   val memory = Module(new MemoryModule(dWidth, dAddrWidth, rfDepth, instrs))
   memory.io.results <> execute.io.results
+  execute.io.resultsReady := memory.io.resultsReady
   memory.io.memAddr <> io.data.out.addr
   memory.io.memDataOut <> io.data.out.value
   memory.io.memDataIn <> io.data.in
@@ -223,8 +225,8 @@ class FetchModule(iWidth : Int) extends Module {
 
   val instrReg = RegInit(0.U(iWidth.W))
   val instrValid = Wire(Bool())
-  instrValid := io.memInstr.valid & memReadyReg & ~io.branchPCIn.valid
-  when (instrValid) {
+  instrValid := io.memInstr.valid & memReadyReg & ~io.branchPCIn.valid & io.instr.ready
+  when (io.memInstr.valid & ~io.branchPCIn.valid) {
     instrReg := io.memInstr.bits
   }
   val instrValidReg = RegNext(instrValid)
@@ -276,11 +278,12 @@ class DecodeModule(
     val branchPC = util.Valid(SInt(64.W))
     val relativeBranch = Output(Bool())
     val instrOut = Output(UInt(iWidth.W))
+    val instrReady = Input(Bool())
   })
 
   val instrValidsReg = Reg(Vec(numInstrs, Bool()))
   val instrValidsRegIn = Wire(Vec(numInstrs, Bool()))
-  val hazard = Wire(Bool())
+  val hazard = Wire(Bool()) // TODO: rename and use also for memory latency in downstream stages
   val hazardReg = RegInit(false.B)
   for (idx <- 0 until numInstrs) {
     instrValidsReg(idx) := instrValidsRegIn(idx) & !hazard
@@ -315,7 +318,7 @@ class DecodeModule(
   io.instrOut := instrReg.bits
 
   io.instrIn.ready := true.B
-  hazard := false.B
+  hazard := !io.instrReady
   hazardReg := hazard
 
   val instrIn = Wire(util.Valid(UInt(iWidth.W)))
@@ -347,7 +350,7 @@ class DecodeModule(
             }
           }
         }
-        when (instr.writeRF) {
+        when (instr.writeRF && !hazard) {
           rfWritten(instr.getWriteIndex(instrIn.bits, ops)) := false.B
         }
       }
@@ -394,8 +397,10 @@ class ExecuteModule(
   val io = IO(new Bundle {
     val instr = Input(UInt(iWidth.W))
     val instrValids = Input(Vec(numInstrs, Bool()))
+    val instrReady = Output(Bool())
     val ops = Input(Vec(numOps, UInt(opWidth.W)))
     val results = Output(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
+    val resultsReady = Input(Bool())
   })
 
   val results = Wire(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
@@ -421,6 +426,8 @@ class ExecuteModule(
 
   val resultsReg = RegNext(results)
   io.results := resultsReg
+
+  io.instrReady := io.resultsReady
 }
 
 class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Instructions) extends Module {
@@ -429,8 +436,8 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle{
-    // TODO: decouple results in case of memory latency
     val results = Input(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
+    val resultsReady = Output(Bool())
     val memAddr = util.Valid(UInt(addrWidth.W))
     val memDataOut = util.Decoupled(UInt(dataWidth.W))
     val memDataIn = Flipped(util.Decoupled(UInt(dataWidth.W)))
@@ -480,6 +487,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     memBusy := false.B
   }
   memBusyReg := memBusy
+  io.resultsReady := !memBusy
 
   when (memBusy) {
     writeMemReg := writeMem

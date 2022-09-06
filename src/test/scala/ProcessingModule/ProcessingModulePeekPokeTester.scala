@@ -121,4 +121,24 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
       }
     } should be (true)
   }
+
+  ignore should "increment with memory value with stall" in {
+    executeTest("incrDataStall"){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
+        def cycles = List(
+          List(new InstrReq(addr = 0)), // fetch 0
+          List(new InstrRcv(instr = incrData(0, 1)), new InstrReq(addr = 1)), // receive incr1, fetch 1
+          Nil, // decode incrData
+          List(new InstrRcv(instr = store(0, 6))), // execute incrData, receive store
+          Nil, // wait incrData, decode store
+          List(new LoadRcv(4), new LoadReq(addr = 1)), // memory incrData, execute store
+          Nil, // writeback incrData, memory store
+          Nil, // wait store
+          List(new StoreReq(addr = 6, data = 4)), // writeback store to 6
+          Nil,
+          Nil
+        )
+      }
+    } should be (true)
+  }
 }

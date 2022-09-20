@@ -130,10 +130,14 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
           List(new InstrRcv(instr = incrData(0, 1)), new InstrReq(addr = 1)), // receive incr1, fetch 1
           Nil, // decode incrData
           List(new InstrRcv(instr = store(0, 6))), // execute incrData, receive store
-          Nil, // wait incrData, decode store
+          Nil, // memory incrData, decode store
+          Nil, // stall on incrData
           List(new LoadRcv(4), new LoadReq(addr = 1)), // memory incrData, execute store
           Nil, // writeback incrData, memory store
-          Nil, // wait store
+          Nil, // stall on store
+          Nil, // stall on store
+          Nil, // stall on store
+          Nil, // stall on store
           List(new StoreReq(addr = 6, data = 4)), // writeback store to 6
           Nil,
           Nil

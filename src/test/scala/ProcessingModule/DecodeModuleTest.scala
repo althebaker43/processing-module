@@ -217,4 +217,51 @@ class DecodeModuleTest extends ChiselFlatSpec {
       }
     } should be(true)
   }
+
+  it should "stall on output not ready when instr arrives" in {
+    executeTest("stallOutputInstr"){
+      dut => new PeekPokeTester(dut) {
+
+        poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.instrReady, true.B)
+        poke(dut.io.data.valid, false.B)
+
+        poke(dut.io.instrIn.bits, "b000_001_01".U)
+        step(1)
+        expect(dut.io.instrValids(0), true.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_001_01".U)
+
+        poke(dut.io.instrReady, false.B)
+        poke(dut.io.instrIn.bits, "b000_010_01".U)
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_010_01".U)
+        expect(dut.io.instrIn.ready, false.B)
+
+        poke(dut.io.instrIn.valid, false.B)
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_010_01".U)
+        expect(dut.io.instrIn.ready, false.B)
+
+        poke(dut.io.instrReady, true.B)
+        step(1)
+        expect(dut.io.instrValids(0), true.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut, "b000_010_01".U)
+        expect(dut.io.instrIn.ready, true.B)
+      }
+    } should be(true)
+  }
 }

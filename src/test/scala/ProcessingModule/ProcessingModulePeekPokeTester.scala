@@ -122,7 +122,7 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  ignore should "increment with memory value with stall" in {
+  it should "increment with memory value with stall" in {
     executeTest("incrDataStall"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = List(

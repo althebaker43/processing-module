@@ -313,8 +313,6 @@ class DecodeModule(
   io.relativeBranch := false.B
 
   val instrReg = Reg(util.Valid(UInt(iWidth.W)))
-  instrReg.bits := io.instrIn.bits
-  instrReg.valid := io.instrIn.valid
   io.instrOut := instrReg.bits
 
   io.instrIn.ready := true.B
@@ -325,7 +323,10 @@ class DecodeModule(
   when (!hazardReg) {
     instrIn.bits := io.instrIn.bits
     instrIn.valid := io.instrIn.valid
+    instrReg.bits := io.instrIn.bits
+    instrReg.valid := io.instrIn.valid
   } .otherwise {
+    io.instrIn.ready := false.B
     instrIn := instrReg
   }
 
@@ -345,7 +346,6 @@ class DecodeModule(
             when (rfWritten(rfIdx)) {
               ops(opIdx) := rf(rfIdx)
             } .otherwise {
-              io.instrIn.ready := false.B
               hazard := true.B
             }
           }

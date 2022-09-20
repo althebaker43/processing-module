@@ -25,6 +25,7 @@ class UIntReorderQueue(dWidth : Int, depth : Int) extends Module {
   })
 }
 
+@Ignore
 class ReorderQueueTester extends ChiselFlatSpec {
 
   val dWidth = 4

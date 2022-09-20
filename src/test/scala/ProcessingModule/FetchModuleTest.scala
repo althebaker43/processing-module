@@ -5,7 +5,9 @@ import org.scalatest.{Matchers, FlatSpec}
 import chisel3._
 import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester, Driver}
 import chisel3.testers.TesterDriver
+import org.scalatest.Ignore
 
+@Ignore
 class FetchModuleTest extends ChiselFlatSpec {
 
   val iWidth = 4

@@ -56,6 +56,6 @@ class MemoryModuleTest extends ChiselFlatSpec {
         expect(dut.io.memDataIn.ready, false.B)
         expect(dut.io.rfDataOut.valid, false.B)
       }
-    }
+    } should be (true)
   }
 }

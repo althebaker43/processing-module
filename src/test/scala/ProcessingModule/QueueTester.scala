@@ -3,7 +3,9 @@ package ProcessingModule
 
 import chisel3._
 import chisel3.iotesters.{ChiselFlatSpec, OrderedDecoupledHWIOTester, Driver, PeekPokeTester}
+import org.scalatest.Ignore
 
+@Ignore
 class QueueTester extends ChiselFlatSpec {
 
   behavior of "Queue"

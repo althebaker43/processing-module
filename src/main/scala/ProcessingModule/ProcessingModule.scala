@@ -97,7 +97,7 @@ object AdderInstruction {
 
   val codeWidth = codeNOP.getWidth
 
-  val regWidth = 1
+  val regWidth = 2
 
   val addrWidth = 4
 
@@ -121,11 +121,17 @@ class AdderInstruction extends Bundle {
   }
 }
 
-class AdderModule(dWidth : Int) extends ProcessingModule(dWidth, AdderInstruction.addrWidth, AdderInstruction.width, 2, dWidth, 2) {
+class AdderModule(dWidth : Int)
+    extends ProcessingModule(dWidth=dWidth,
+      dAddrWidth=AdderInstruction.addrWidth,
+      iWidth=AdderInstruction.width,
+      numOps=2,
+      opWidth=dWidth,
+      rfDepth=4) {
 
   def getInstrCode(instr : UInt) : UInt = instr(2,0)
-  def getInstrReg(instr : UInt) : UInt = instr(3)
-  def getInstrAddr(instr : UInt) : UInt = instr(7,4)
+  def getInstrReg(instr : UInt) : UInt = instr(4, 3)
+  def getInstrAddr(instr : UInt) : UInt = instr(8, 5)
 
   def initInstrs = new Instructions {
 

@@ -145,4 +145,27 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
       }
     } should be (true)
   }
+
+  it should "process one incrData per cycle" in {
+    executeTest("incrData_cpi1"){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
+        def cycles = List(
+          List(new InstrReq(addr = 0)),
+          List(new InstrReq(addr = 1), new InstrRcv(instr = incrData(0, 0))),
+          List(new InstrReq(addr = 2), new InstrRcv(instr = incrData(1, 1))),
+          List(new InstrReq(addr = 3), new InstrRcv(instr = incrData(2, 2))),
+          List(new InstrReq(addr = 4), new InstrRcv(instr = incrData(3, 3)), new LoadRcv(2), new LoadReq(0)),
+          List(new InstrReq(addr = 5), new InstrRcv(instr = incrData(0, 4)), new LoadRcv(2), new LoadReq(1)),
+          List(new InstrReq(addr = 6), new InstrRcv(instr = incrData(1, 5)), new LoadRcv(2), new LoadReq(2)),
+          List(new InstrReq(addr = 7), new InstrRcv(instr = incrData(2, 6)), new LoadRcv(2), new LoadReq(3)),
+          List(new InstrReq(addr = 8), new InstrRcv(instr = incrData(3, 7)), new LoadRcv(2), new LoadReq(4)),
+          List(new InstrReq(addr = 9), new InstrRcv(instr = incrData(0, 8)), new LoadRcv(2), new LoadReq(5)),
+          List(new InstrReq(addr = 10), new InstrRcv(instr = incrData(1, 9)), new LoadRcv(2), new LoadReq(6)),
+          List(new InstrReq(addr = 11), new InstrRcv(instr = incrData(2, 10)), new LoadRcv(2), new LoadReq(7)),
+          List(new LoadRcv(2), new LoadReq(8)),
+          List(new LoadRcv(2), new LoadReq(9)),
+          List(new LoadRcv(2), new LoadReq(10)))
+      }
+    } should be (true)
+  }
 }

@@ -223,7 +223,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits, 4)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.pcOut.bits, 3)
         expect(dut.io.memInstr.ready, 1)
 
         poke(dut.io.memInstr.bits, 6)
@@ -231,7 +231,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits, 6)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 3)
+        expect(dut.io.pcOut.bits, 4)
         expect(dut.io.memInstr.ready, 1)
       }
     } should be (true)

@@ -198,9 +198,9 @@ class AdderModule(dWidth : Int)
         override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = {
           val offset = Wire(SInt())
           when (ops(0) > 0.U) {
-            offset := 2.S
-          } .otherwise {
             offset := 1.S
+          } .otherwise {
+            offset := 0.S
           }
           offset
         }
@@ -366,9 +366,15 @@ class DecodeModule(
 
     when (instrValidsReg(idx)) {
 
-      io.branchPC.valid := instr.branch
       io.branchPC.bits := instr.getBranchPC(instrReg.bits, opsReg)
       io.relativeBranch := instr.relativeBranch
+      when (instr.branch) {
+        when (io.relativeBranch) {
+          io.branchPC.valid := (io.branchPC.bits =/= 0.S)
+        } .otherwise {
+          io.branchPC.valid := true.B
+        }
+      }
     }
   }
 }

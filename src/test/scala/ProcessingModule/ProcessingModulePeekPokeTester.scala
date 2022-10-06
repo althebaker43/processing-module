@@ -168,4 +168,46 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
       }
     } should be (true)
   }
+
+  it should "process one store per cycle" in {
+    executeTest("store_cpi1"){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
+        def cycles = List(
+          List(new InstrReq(addr = 0)),
+          List(new InstrReq(addr = 1), new InstrRcv(instr = store(0, 0))),
+          List(new InstrReq(addr = 2), new InstrRcv(instr = store(0, 1))),
+          List(new InstrReq(addr = 3), new InstrRcv(instr = store(0, 2))),
+          List(new InstrReq(addr = 4), new InstrRcv(instr = store(0, 3)), new StoreReq(0, 0)),
+          List(new InstrReq(addr = 5), new InstrRcv(instr = store(0, 4)), new StoreReq(1, 0)),
+          List(new InstrReq(addr = 6), new InstrRcv(instr = store(0, 5)), new StoreReq(2, 0)),
+          List(new InstrReq(addr = 7), new InstrRcv(instr = store(0, 6)), new StoreReq(3, 0)),
+          List(new InstrReq(addr = 8), new InstrRcv(instr = store(0, 7)), new StoreReq(4, 0)),
+          List(new InstrReq(addr = 9), new InstrRcv(instr = store(0, 8)), new StoreReq(5, 0)),
+          List(new InstrReq(addr = 10), new InstrRcv(instr = store(0, 9)), new StoreReq(6, 0)),
+          List(new InstrReq(addr = 11), new InstrRcv(instr = store(0, 10)), new StoreReq(7, 0)),
+          List(new StoreReq(8, 0)),
+          List(new StoreReq(9, 0)),
+          List(new StoreReq(10, 0)))
+      }
+    } should be (true)
+  }
+
+  it should "process one branch per cycle with correct prediction" in {
+    executeTest("branch_cpi1"){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
+        def cycles = List(
+          List(new InstrReq(addr = 0)),
+          List(new InstrReq(addr = 1), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 2), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 3), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 4), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 5), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 6), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 7), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 8), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 9), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 10), new InstrRcv(instr = bgt(0))))
+      }
+    } should be (true)
+  }
 }

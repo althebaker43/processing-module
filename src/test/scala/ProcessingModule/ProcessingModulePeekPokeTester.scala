@@ -192,7 +192,7 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "process one branch per cycle with correct prediction" in {
+  it should "process one untaken branch per cycle" in {
     executeTest("branch_cpi1"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = List(
@@ -207,6 +207,23 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
           List(new InstrReq(addr = 8), new InstrRcv(instr = bgt(0))),
           List(new InstrReq(addr = 9), new InstrRcv(instr = bgt(0))),
           List(new InstrReq(addr = 10), new InstrRcv(instr = bgt(0))))
+      }
+    } should be (true)
+  }
+
+  it should "should not execute invalid instructions with taken branch" in {
+    executeTest("branch_flush"){
+      (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
+        def cycles = List(
+          List(new InstrReq(addr = 0)),
+          List(new InstrReq(addr = 1), new InstrRcv(instr = incr1(0))),
+          Nil,
+          Nil,
+          List(new InstrReq(addr = 2), new InstrRcv(instr = bgt(0))),
+          List(new InstrReq(addr = 4), new InstrRcv(instr = store(0, 10))),
+          Nil,
+          Nil,
+          List(new StoreReq(10, 1)))
       }
     } should be (true)
   }

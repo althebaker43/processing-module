@@ -9,24 +9,22 @@ class MemoryModuleTest extends ChiselFlatSpec {
 
   val instrs = new Instructions {
     def logic = 
-      new InstructionLogic("incr", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic("incr") {
         def decode ( instr : UInt ) : Bool =  instr(1,0) === 1.U
         override def readMemory() : Bool = false.B
         override def writeMemory() : Bool = false.B
         override def writeRF(): Bool = true.B
         override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = instr(4,2)
         override def getData(instr : UInt, ops : Vec[UInt]) : UInt = ops(0) + 1.U
-        def execute ( instr : UInt ) : Unit = Unit
       } ::
-  new InstructionLogic("add", dataInDepend=false, dataOutDepend=false) {
-    def decode ( instr : UInt ) : Bool = instr(1,0) === 2.U
-    override def readMemory() : Bool = false.B
-    override def writeMemory() : Bool = false.B
-    override def writeRF() : Bool = true.B
-    override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = instr(4,2)
-    override def getData(instr : UInt, ops : Vec[UInt]) : UInt = ops(0) + ops(1)
-    def execute ( instr : UInt ) : Unit  = Unit
-  } ::
+    new InstructionLogic("add") {
+      def decode ( instr : UInt ) : Bool = instr(1,0) === 2.U
+      override def readMemory() : Bool = false.B
+      override def writeMemory() : Bool = false.B
+      override def writeRF() : Bool = true.B
+      override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = instr(4,2)
+      override def getData(instr : UInt, ops : Vec[UInt]) : UInt = ops(0) + ops(1)
+    } ::
     Nil
   }
 

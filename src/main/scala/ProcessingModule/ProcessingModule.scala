@@ -8,39 +8,50 @@ abstract class Instructions {
   def logic : Seq[InstructionLogic]
 }
 
-abstract class InstructionLogic(val name : String, val dataInDepend : Boolean, val dataOutDepend : Boolean) {
+abstract class InstructionLogic(val name : String) {
 
+  /** Number of operands */
   val numOps : Int = 0
 
-  def decode( instr : UInt) : Bool
+  /** Indicates if the given word matches this instruction class */
+  def decode(instr : UInt) : Bool
 
+  /** Index in register file that specified operand is at */
   def getRFIndex(instr : UInt, opIndex : Int) : UInt = 0.U
 
+  /** Indicates if this instruction is a branch */
   def branch() : Bool = false.B
 
+  /** Indicates if this branch instruction is relative to PC */
   def relativeBranch() : Bool = false.B
 
+  /** Returns instruction address or offset that should be jumped to */
   def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = 0.S
 
+  /** Indicates if this instruction reads from data memory */
   def readMemory() : Bool = false.B
 
+  /** Indicates if this instruction writes to data memory */
   def writeMemory() : Bool = false.B
 
+  /** Indicates if this instruction writes to the register file */
   def writeRF() : Bool = false.B
 
+  /** Returns data address that should be accessed */
   def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
+  /** Returns index in register file that should be written */
   def getWriteIndex(intr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
+  /** Returns data that should be written or stored */
   def getData(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
+  /** Returns memory data that should be written to register file
+    *
+    * The data returned by this logic is calculated in the memory
+    * stage using data just loaded from data memory
+    */
   def getRFWriteData(resultData : UInt, memData : UInt) : UInt = memData
-
-  def execute( instr : UInt) : Unit
-
-  def load(instr : UInt) : UInt = 0.U
-
-  def store(instr : UInt) : UInt = 0.U
 }
 
 abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, numOps : Int, opWidth : Int, rfDepth : Int) extends Module {
@@ -136,11 +147,10 @@ class AdderModule(dWidth : Int)
   def initInstrs = new Instructions {
 
     def logic = {
-      new InstructionLogic("nop", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic("nop") {
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeNOP
-        def execute ( instr : UInt ) : Unit = Unit
       } ::
-      new InstructionLogic("incr1", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic("incr1") {
         override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncr1
         override def getRFIndex(instr : UInt, opIndex : Int) : UInt = {
@@ -152,9 +162,8 @@ class AdderModule(dWidth : Int)
         override def writeRF : Bool = true.B
         override def getWriteIndex(instr : UInt, ops : Vec[UInt]) = getInstrReg(instr)
         override def getData(instr : UInt, ops : Vec[UInt]) = ops(0) + 1.U
-        def execute ( instr : UInt ) : Unit = Unit
       } ::
-      new InstructionLogic("incrData", dataInDepend=true, dataOutDepend=false) {
+      new InstructionLogic("incrData") {
         override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeIncrData
         override def getRFIndex(instr : UInt, opIndex : Int) : UInt = {
@@ -168,9 +177,8 @@ class AdderModule(dWidth : Int)
         override def getAddress(instr : UInt, ops : Vec[UInt]) = getInstrAddr(instr)
         override def getWriteIndex(instr : UInt, ops : Vec[UInt]) = getInstrReg(instr)
         override def getRFWriteData(resultData : UInt, memData : UInt) : UInt = resultData + memData
-        def execute ( instr : UInt ) : Unit = Unit
       } ::
-      new InstructionLogic("store", dataInDepend=false, dataOutDepend=true) {
+      new InstructionLogic("store") {
         override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeStore
         override def getRFIndex(instr : UInt, opIndex : Int) = {
@@ -182,9 +190,8 @@ class AdderModule(dWidth : Int)
         override def writeMemory : Bool = true.B
         override def getAddress(instr : UInt, ops : Vec[UInt]) = getInstrAddr(instr)
         override def getData(instr : UInt, ops : Vec[UInt]) = ops(0)
-        def execute ( instr : UInt ) : Unit = Unit
       } ::
-      new InstructionLogic("bgt", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic("bgt") {
         override val numOps : Int = 1
         def decode ( instr : UInt ) : Bool = getInstrCode(instr) === AdderInstruction.codeBGT
         override def getRFIndex(instr : UInt, opIndex : Int) = {
@@ -204,7 +211,6 @@ class AdderModule(dWidth : Int)
           }
           offset
         }
-        def execute ( instr : UInt ) : Unit = Unit
       } ::
       Nil
     }

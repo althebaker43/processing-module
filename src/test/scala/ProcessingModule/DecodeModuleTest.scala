@@ -9,7 +9,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
 
   val instrs = new Instructions {
     def logic =
-      new InstructionLogic("incr", dataInDepend=false, dataOutDepend=false) {
+      new InstructionLogic("incr") {
         override val numOps = 1
         def decode ( instr : UInt ) : Bool =  instr(1,0) === 1.U
         override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
@@ -20,9 +20,8 @@ class DecodeModuleTest extends ChiselFlatSpec {
         }
         override def writeRF() : Bool = true.B
         override def getWriteIndex( instr : UInt, ops : Vec[UInt] ) : UInt = instr(4,2)
-        def execute ( instr : UInt ) : Unit = Unit
       } ::
-    new InstructionLogic("add", dataInDepend=false, dataOutDepend=false) {
+    new InstructionLogic("add") {
       override val numOps = 2
       def decode ( instr : UInt ) : Bool = instr(1,0) === 2.U
       override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
@@ -31,9 +30,8 @@ class DecodeModuleTest extends ChiselFlatSpec {
           case 1 => instr(7,5)
         }
       }
-      def execute ( instr : UInt ) : Unit  = Unit
     } ::
-    new InstructionLogic("beq", dataInDepend=false, dataOutDepend=false) {
+    new InstructionLogic("beq") {
       override val numOps = 1
       def decode ( instr : UInt ) : Bool = instr(1,0) === 3.U
       override def getRFIndex ( instr : UInt, opIndex : Int ) : UInt = {
@@ -46,7 +44,6 @@ class DecodeModuleTest extends ChiselFlatSpec {
       override def getBranchPC( instr : UInt, ops : Vec[UInt] ) : SInt = {
         ops(0).asSInt
       }
-      def execute ( instr : UInt ) : Unit  = Unit
     } ::
     Nil
   }

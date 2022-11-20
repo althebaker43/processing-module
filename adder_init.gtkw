@@ -2,7 +2,7 @@
 [*] GTKWave Analyzer v3.3.86 (w)1999-2017 BSI
 [*] Sat Sep  3 16:47:49 2022
 [*]
-[dumpfile] "/home/allen/processing-module/test_run_dir/adder_init/ProcessingModule.ProcessingModulePeekPokeTester1175490605/AdderModule.vcd"
+[dumpfile] "/home/allen/processing-module/test_run_dir/adder_init/latest/AdderModule.vcd"
 [dumpfile_mtime] "Sat Sep  3 16:38:26 2022"
 [dumpfile_size] 14398
 [savefile] "/home/allen/processing-module/adder_init.gtkw"

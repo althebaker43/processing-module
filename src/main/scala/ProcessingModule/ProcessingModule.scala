@@ -54,12 +54,20 @@ abstract class InstructionLogic(val name : String) {
   def getRFWriteData(resultData : UInt, memData : UInt) : UInt = memData
 }
 
-abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, numOps : Int, opWidth : Int, rfDepth : Int) extends Module {
+abstract class ProcessingModule(
+  dWidth : Int,
+  dAddrWidth : Int,
+  iWidth : Int,
+  pcWidth : Int,
+  pcAlign : Int,
+  numOps : Int,
+  opWidth : Int,
+  rfDepth : Int) extends Module {
 
   val io = IO(new Bundle {
     val instr = new Bundle {
       val in = Flipped(util.Decoupled(UInt(iWidth.W)))
-      val pc = util.Valid(UInt(64.W))
+      val pc = util.Valid(UInt(pcWidth.W))
     }
     val data = new Bundle {
       val in = Flipped(util.Decoupled(UInt(dWidth.W)))
@@ -74,16 +82,16 @@ abstract class ProcessingModule(dWidth : Int, dAddrWidth : Int, iWidth : Int, nu
 
   val instrs = initInstrs
 
-  val fetch = Module(new FetchModule(iWidth))
+  val fetch = Module(new FetchModule(iWidth, pcWidth, pcAlign))
   fetch.io.pcOut <> io.instr.pc
   fetch.io.memInstr <> io.instr.in
 
-  val decode = Module(new DecodeModule(iWidth, instrs, numOps, opWidth, dWidth, rfDepth))
+  val decode = Module(new DecodeModule(iWidth, pcWidth, instrs, numOps, opWidth, dWidth, rfDepth))
   decode.io.instrIn <> fetch.io.instr
   fetch.io.branchPCIn <> decode.io.branchPC
   fetch.io.relativeBranch := decode.io.relativeBranch
 
-  val execute = Module(new ExecuteModule(iWidth, instrs, numOps, dWidth, dWidth, dAddrWidth, rfDepth))
+  val execute = Module(new ExecuteModule(iWidth, pcWidth, instrs, numOps, dWidth, dWidth, dAddrWidth, rfDepth))
   execute.io.instr <> decode.io.instrOut
   execute.io.instrValids <> decode.io.instrValids
   decode.io.instrReady := execute.io.instrReady
@@ -136,6 +144,8 @@ class AdderModule(dWidth : Int)
     extends ProcessingModule(dWidth=dWidth,
       dAddrWidth=AdderInstruction.addrWidth,
       iWidth=AdderInstruction.width,
+      pcWidth=6,
+      pcAlign=1,
       numOps=2,
       opWidth=dWidth,
       rfDepth=4) {
@@ -224,14 +234,14 @@ class Instruction(iWidth : Int, pcWidth : Int) extends Bundle {
   override def cloneType = (new Instruction(iWidth, pcWidth)).asInstanceOf[this.type]
 }
 
-class FetchModule(iWidth : Int) extends Module {
+class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
   val io = IO(new Bundle {
-    val branchPCIn = Flipped(util.Valid(SInt(64.W)))
+    val branchPCIn = Flipped(util.Valid(SInt(pcWidth.W)))
     val relativeBranch = Input(Bool())
-    val pcOut = util.Valid(UInt(64.W))
+    val pcOut = util.Valid(UInt(pcWidth.W))
     val memInstr = Flipped(util.Decoupled(UInt(iWidth.W)))
-    val instr = util.Decoupled(new Instruction(iWidth, pcWidth=64))
+    val instr = util.Decoupled(new Instruction(iWidth, pcWidth))
   })
 
   val memReadyReg = RegInit(false.B)
@@ -242,7 +252,7 @@ class FetchModule(iWidth : Int) extends Module {
     memReadyReg := true.B
   }
 
-  val instrReg = Reg(new Instruction(iWidth, pcWidth=64))
+  val instrReg = Reg(new Instruction(iWidth, pcWidth))
   val instrValid = Wire(Bool())
   instrValid := io.memInstr.valid & memReadyReg & ~io.branchPCIn.valid & io.instr.ready
   when (io.memInstr.valid & ~io.branchPCIn.valid) {
@@ -253,10 +263,10 @@ class FetchModule(iWidth : Int) extends Module {
   io.instr.bits := instrReg
   io.instr.valid := instrValidReg
 
-  val pcReg = RegInit(0.U(64.W))
+  val pcReg = RegInit(0.U(pcWidth.W))
   when (io.memInstr.valid & memReadyReg) {
     when (~io.branchPCIn.valid) {
-      pcReg := io.pcOut.bits + 1.U
+      pcReg := io.pcOut.bits + (1 << (pcAlign - 1)).U
     } .otherwise {
       pcReg := io.pcOut.bits
     }
@@ -277,6 +287,7 @@ class FetchModule(iWidth : Int) extends Module {
 
 class DecodeModule(
   iWidth : Int,
+  pcWidth : Int,
   instrs : Instructions,
   numOps : Int,
   opWidth : Int,
@@ -288,16 +299,16 @@ class DecodeModule(
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle {
-    val instrIn = Flipped(util.Decoupled(new Instruction(iWidth, pcWidth=64)))
+    val instrIn = Flipped(util.Decoupled(new Instruction(iWidth, pcWidth)))
     val data = Flipped(util.Valid(UInt(rfWidth.W)))
     val index = Input(UInt(rfIdxWidth.W))
     val exData = Flipped(util.Valid(UInt(rfWidth.W)))
     val exIndex = Input(UInt(rfIdxWidth.W))
     val instrValids = Output(Vec(numInstrs, Bool()))
     val ops = Output(Vec(numOps, UInt(opWidth.W)))
-    val branchPC = util.Valid(SInt(64.W))
+    val branchPC = util.Valid(SInt(pcWidth.W))
     val relativeBranch = Output(Bool())
-    val instrOut = Output(new Instruction(iWidth, pcWidth=64))
+    val instrOut = Output(new Instruction(iWidth, pcWidth))
     val instrReady = Input(Bool())
   })
 
@@ -332,14 +343,14 @@ class DecodeModule(
   io.branchPC.bits := 0.S
   io.relativeBranch := false.B
 
-  val instrReg = Reg(util.Valid(new Instruction(iWidth, pcWidth=64)))
+  val instrReg = Reg(util.Valid(new Instruction(iWidth, pcWidth)))
   io.instrOut := instrReg.bits
 
   io.instrIn.ready := true.B
   hazard := !io.instrReady
   hazardReg := hazard
 
-  val instrIn = Wire(util.Valid(new Instruction(iWidth, pcWidth=64)))
+  val instrIn = Wire(util.Valid(new Instruction(iWidth, pcWidth)))
   when (!hazardReg) {
     instrIn.bits := io.instrIn.bits
     instrIn.valid := io.instrIn.valid
@@ -409,6 +420,7 @@ class ExecuteResults(dataWidth : Int, addrWidth : Int, rfDepth : Int, numInstrs 
 
 class ExecuteModule(
   iWidth : Int,
+  pcWidth : Int,
   instrs : Instructions,
   numOps : Int,
   opWidth : Int,
@@ -421,7 +433,7 @@ class ExecuteModule(
   val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
 
   val io = IO(new Bundle {
-    val instr = Input(new Instruction(iWidth, pcWidth=64))
+    val instr = Input(new Instruction(iWidth, pcWidth))
     val instrValids = Input(Vec(numInstrs, Bool()))
     val instrReady = Output(Bool())
     val ops = Input(Vec(numOps, UInt(opWidth.W)))

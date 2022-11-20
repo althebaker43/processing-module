@@ -50,7 +50,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
 
   def executeTest(testName : String)(testerGen : DecodeModule => PeekPokeTester[DecodeModule]) : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/decode_" + testName),
-      () => new DecodeModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=8))(testerGen)
+      () => new DecodeModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=8))(testerGen)
   }
 
   behavior of "DecodeModule"

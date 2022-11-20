@@ -40,7 +40,7 @@ class ExecuteModuleTest extends ChiselFlatSpec {
 
   def executeTest(testName : String)(testerGen : ExecuteModule => PeekPokeTester[ExecuteModule]) : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/exec_" + testName),
-      () => new ExecuteModule(iWidth=8, instrs=instrs, numOps=2, opWidth=4, dataWidth=4, addrWidth=8, rfDepth=8))(testerGen)
+      () => new ExecuteModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, dataWidth=4, addrWidth=8, rfDepth=8))(testerGen)
   }
 
   behavior of "ExecuteModule"

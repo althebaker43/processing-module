@@ -8,7 +8,7 @@ class RISCVUnitTester extends ChiselFlatSpec {
 
   def executeTest(testName : String)() : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/riscv_" + testName),
-      () => new RISCVLoaderModule("src/test/resources/riscv/" + testName + ".dump")){
+      () => new RISCVLoaderModule("src/test/resources/riscv/dump/" + testName + ".dump")){
       dut => new PeekPokeTester(dut) {
         var cycleCount = 0
         while ((peek(dut.io.status.valid) == BigInt(0)) && (cycleCount < 500)) {

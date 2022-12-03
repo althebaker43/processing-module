@@ -314,6 +314,7 @@ class DecodeModule(
 
   val instrValidsReg = Reg(Vec(numInstrs, Bool()))
   val instrValidsRegIn = Wire(Vec(numInstrs, Bool()))
+  val instrValid = Wire(Bool())
   val hazard = Wire(Bool()) // TODO: rename and use also for memory latency in downstream stages
   val hazardReg = RegInit(false.B)
   for (idx <- 0 until numInstrs) {
@@ -361,11 +362,13 @@ class DecodeModule(
     instrIn := instrReg
   }
 
+  instrValid := false.B
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
 
     when (instrIn.valid) {
       instrValidsRegIn(idx) := instr.decode(instrIn.bits.word)
       when (instrValidsRegIn(idx)) {
+        instrValid := true.B
         for (opIdx <- 0 until instr.numOps) {
           val rfIdx = Wire(UInt(rfIdxWidth.W))
           rfIdx := instr.getRFIndex(instrIn.bits.word, opIdx)
@@ -401,6 +404,10 @@ class DecodeModule(
         }
       }
     }
+  }
+
+  when (instrIn.valid && !instrValid) {
+    printf("decode: invalid instruction %x at PC %x\n", instrIn.bits.word, instrIn.bits.pc)
   }
 }
 

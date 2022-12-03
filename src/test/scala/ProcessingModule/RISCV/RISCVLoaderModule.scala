@@ -70,7 +70,6 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
 
   val instr = Wire(util.Decoupled(UInt(32.W)))
   val pc = Wire(util.Valid(UInt(32.W)))
-
   val instrReg = Reg(util.Valid(UInt(32.W)))
   instr.valid := instrReg.valid
   instr.bits := instrReg.bits
@@ -81,17 +80,40 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
     instrReg.valid := false.B
   }
 
-  pc.valid := false.B
-  instr.ready := false.B
-  val dummyPC = RegInit(0.U(32.W))
-  val prevDummyPC = RegNext(dummyPC)
-  pc.bits := dummyPC
-  when (dummyPC < 0x18c.U) {
-    pc.valid := true.B
-    instr.ready := true.B
-  }
+  val memDataOut = Wire(util.Decoupled(UInt(32.W)))
+  val memDataInAddr = Wire(util.Valid(UInt(32.W)))
+  val memDataIn = Wire(util.Decoupled(UInt(32.W)))
+  memDataOut.valid := true.B
+  memDataOut.bits := 0.U
+  memDataIn.ready := true.B
+
+  val dut = Module(new RISCVProcessingModule(rfDepth = 4096 + 32))
+  dut.io.instr.in <> instr
+  dut.io.instr.pc <> pc
+  dut.io.data.in <> memDataOut
+  dut.io.data.out.value <> memDataIn
+  dut.io.data.out.addr <> memDataInAddr
+
+  val prevPC = RegNext(pc.bits)
   when (instr.valid) {
-    printf("Sim: PC: %x, Instr: %x\n", prevDummyPC, instr.bits)
-    dummyPC := dummyPC + 4.U
+    printf("Sim: PC: %x, Instr: %x\n", prevPC, instr.bits)
+    // when (instr.bits === 0x73.U) {
+    //   io.status.valid := true.B
+    // }
+  }
+
+  when (memDataInAddr.valid &
+    (memDataInAddr.bits === 0.U) &
+    memDataIn.valid) {
+
+    printf("Sim: Addr: %x, Data: %x\n", memDataInAddr.bits, memDataIn.bits)
+
+    when (memDataIn.bits === 0.U) {
+      io.status.bits := false.B
+    } .otherwise {
+      io.status.bits := true.B
+    }
+
+    io.status.valid := true.B
   }
 }

@@ -41,7 +41,7 @@ abstract class InstructionLogic(val name : String) {
   def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
   /** Returns index in register file that should be written */
-  def getWriteIndex(intr : UInt, ops : Vec[UInt]) : UInt = 0.U
+  def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
 
   /** Returns data that should be written or stored */
   def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = 0.U
@@ -254,10 +254,14 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
   val instrReg = Reg(new Instruction(iWidth, pcWidth))
   val instrValid = Wire(Bool())
+  val instrPCReg = RegInit(0.U(pcWidth.W))
+  when (io.pcOut.valid) {
+    instrPCReg := io.pcOut.bits
+  }
   instrValid := io.memInstr.valid & memReadyReg & ~io.branchPCIn.valid & io.instr.ready
   when (io.memInstr.valid & ~io.branchPCIn.valid) {
     instrReg.word := io.memInstr.bits
-    instrReg.pc := io.pcOut.bits
+    instrReg.pc := instrPCReg
   }
   val instrValidReg = RegNext(instrValid)
   io.instr.bits := instrReg

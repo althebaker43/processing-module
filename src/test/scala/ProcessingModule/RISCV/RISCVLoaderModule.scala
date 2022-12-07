@@ -60,6 +60,7 @@ object RISCVLoaderModule {
 class RISCVLoaderModule(dumpPath : String) extends Module {
 
   val io = IO(new Bundle {
+    val ready = Output(Bool())
     val status = util.Valid(Bool())
   })
 
@@ -87,12 +88,20 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
   memDataOut.bits := 0.U
   memDataIn.ready := true.B
 
-  val dut = Module(new RISCVProcessingModule(rfDepth = 32 + 4096))
+  val rfDepth = 32 + 4096
+  val dut = Module(new RISCVProcessingModule(rfDepth))
   dut.io.instr.in <> instr
   dut.io.instr.pc <> pc
   dut.io.data.in <> memDataOut
   dut.io.data.out.value <> memDataIn
   dut.io.data.out.addr <> memDataInAddr
+
+  val rfIdxWidth = math.ceil(math.log(rfDepth)/math.log(2)).toInt
+  val rfInitCounter = RegInit(0.U((rfIdxWidth+1).W))
+  io.ready := rfInitCounter === rfDepth.U
+  when (!io.ready) {
+    rfInitCounter := rfInitCounter + 1.U
+  }
 
   val prevPC = RegNext(pc.bits)
   when (instr.valid) {

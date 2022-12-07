@@ -81,14 +81,19 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
     instrReg.valid := false.B
   }
 
+  val dataMem = SyncReadMem(8192, UInt(32.W))
+
   val memDataOut = Wire(util.Decoupled(UInt(32.W)))
   val memDataInAddr = Wire(util.Valid(UInt(32.W)))
   val memDataIn = Wire(util.Decoupled(UInt(32.W)))
-  memDataOut.valid := true.B
-  memDataOut.bits := 0.U
+  memDataOut.valid := RegNext(memDataOut.ready & memDataInAddr.valid)
+  memDataOut.bits := dataMem.read(memDataInAddr.bits, memDataOut.ready & memDataInAddr.valid)
   memDataIn.ready := true.B
+  when (memDataIn.valid & memDataInAddr.valid) {
+    dataMem.write(memDataInAddr.bits, memDataIn.bits)
+  }
 
-  val rfDepth = 32 + 4096
+  val rfDepth = 32
   val dut = Module(new RISCVProcessingModule(rfDepth))
   dut.io.instr.in <> instr
   dut.io.instr.pc <> pc

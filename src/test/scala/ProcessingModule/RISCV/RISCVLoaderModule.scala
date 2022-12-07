@@ -87,7 +87,7 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
   memDataOut.bits := 0.U
   memDataIn.ready := true.B
 
-  val dut = Module(new RISCVProcessingModule(rfDepth = 32))
+  val dut = Module(new RISCVProcessingModule(rfDepth = 32 + 4096))
   dut.io.instr.in <> instr
   dut.io.instr.pc <> pc
   dut.io.data.in <> memDataOut

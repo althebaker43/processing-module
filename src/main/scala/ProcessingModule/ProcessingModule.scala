@@ -289,6 +289,13 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
   }
 }
 
+class RFWord(rfWidth : Int) extends Bundle {
+
+  val word = UInt(rfWidth.W)
+  val isWritten = Bool()
+  override def cloneType = (new RFWord(rfWidth)).asInstanceOf[this.type]
+}
+
 class DecodeModule(
   iWidth : Int,
   pcWidth : Int,
@@ -326,15 +333,26 @@ class DecodeModule(
     io.instrValids(idx) := instrValidsReg(idx)
   }
 
-  val rf = RegInit(VecInit(Seq.fill(rfDepth){ 0.U(rfWidth.W) }))
-  val rfWritten = RegInit(VecInit(Seq.fill(rfDepth){ true.B }))
+  val rf = Mem(rfDepth, new RFWord(rfWidth))
 
-  when (io.data.valid) {
-    rf(io.index) := io.data.bits
-    rfWritten(io.index) := true.B
+  val rfDataIn = Wire(new RFWord(rfWidth))
+  rfDataIn.word := 0.U
+  rfDataIn.isWritten := true.B
+  val rfInitCounter = RegInit(0.U((rfIdxWidth+1).W))
+
+  when (rfInitCounter =/= rfDepth.U) {
+    rfDataIn.word := 0.U
+    rfDataIn.isWritten := true.B
+    rf.write(rfInitCounter, rfDataIn)
+    rfInitCounter := rfInitCounter + 1.U
+  } .elsewhen (io.data.valid) {
+    rfDataIn.word := io.data.bits
+    rfDataIn.isWritten := true.B
+    rf.write(io.index, rfDataIn)
   } .elsewhen (io.exData.valid) {
-    rf(io.exIndex) := io.exData.bits
-    rfWritten(io.exIndex) := true.B
+    rfDataIn.word := io.exData.bits
+    rfDataIn.isWritten := true.B
+    rf.write(io.exIndex, rfDataIn)
   }
 
   val ops = Wire(Vec(numOps, UInt(opWidth.W)))
@@ -352,7 +370,11 @@ class DecodeModule(
   io.instrOut := instrReg.bits
 
   io.instrIn.ready := true.B
-  hazard := !io.instrReady
+  when (rfInitCounter =/= rfDepth.U) {
+    hazard := true.B
+  } .otherwise {
+    hazard := !io.instrReady
+  }
   hazardReg := hazard
 
   val instrIn = Wire(util.Valid(new Instruction(iWidth, pcWidth)))
@@ -364,6 +386,16 @@ class DecodeModule(
   } .otherwise {
     io.instrIn.ready := false.B
     instrIn := instrReg
+  }
+
+  val rfInstrAddr = Wire(UInt(rfIdxWidth.W))
+  rfInstrAddr := 0.U
+  val rfInstrIn = Wire(util.Valid(new RFWord(rfWidth)))
+  rfInstrIn.bits.word := 0.U
+  rfInstrIn.bits.isWritten := false.B
+  rfInstrIn.valid := false.B
+  when (rfInstrIn.valid) {
+    rf.write(rfInstrAddr, rfInstrIn.bits)
   }
 
   instrValid := false.B
@@ -381,15 +413,18 @@ class DecodeModule(
           } .elsewhen(io.exData.valid & (rfIdx === io.exIndex)) {
             ops(opIdx) := io.exData.bits
           } .otherwise {
-            when (rfWritten(rfIdx)) {
-              ops(opIdx) := rf(rfIdx)
+            when (rf(rfIdx).isWritten) {
+              ops(opIdx) := rf(rfIdx).word
             } .otherwise {
               hazard := true.B
             }
           }
         }
         when (instr.writeRF && !hazard) {
-          rfWritten(instr.getWriteIndex(instrIn.bits.word, ops)) := false.B
+          rfInstrAddr := instr.getWriteIndex(instrIn.bits.word, ops)
+          rfInstrIn.bits.word := rf(rfInstrAddr).word
+          rfInstrIn.bits.isWritten := false.B
+          rfInstrIn.valid := true.B
         }
       }
     } .otherwise {

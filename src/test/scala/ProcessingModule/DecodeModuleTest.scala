@@ -48,9 +48,11 @@ class DecodeModuleTest extends ChiselFlatSpec {
     Nil
   }
 
+  val rfDepth : Int = 8
+
   def executeTest(testName : String)(testerGen : DecodeModule => PeekPokeTester[DecodeModule]) : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/decode_" + testName),
-      () => new DecodeModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=8))(testerGen)
+      () => new DecodeModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=rfDepth))(testerGen)
   }
 
   behavior of "DecodeModule"
@@ -59,13 +61,13 @@ class DecodeModuleTest extends ChiselFlatSpec {
     executeTest("add") {
       dut => new PeekPokeTester(dut) {
 
-        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrReady, true.B)
+        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
-
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
-        step(1)
+
+        step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.ops(0), 0.U)
@@ -93,15 +95,15 @@ class DecodeModuleTest extends ChiselFlatSpec {
     executeTest("write_back") {
       dut => new PeekPokeTester(dut) {
 
-        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrReady, true.B)
-
+        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
         poke(dut.io.data.valid, true.B)
         poke(dut.io.data.bits, 4)
         poke(dut.io.index, 1)
-        step(1)
+
+        step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.ops(0), 4.U)
@@ -116,15 +118,15 @@ class DecodeModuleTest extends ChiselFlatSpec {
     executeTest("branch") {
       dut => new PeekPokeTester(dut) {
 
-        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrReady, true.B)
-
+        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrIn.bits.word, "b000_010_11".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
         poke(dut.io.data.valid, true.B)
         poke(dut.io.data.bits, 6)
         poke(dut.io.index, 2)
-        step(1)
+
+        step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.instrValids(2), true.B)
@@ -142,13 +144,13 @@ class DecodeModuleTest extends ChiselFlatSpec {
     executeTest("stall"){
       dut => new PeekPokeTester(dut) {
 
-        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrReady, true.B)
+        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
-
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
-        step(1)
+
+        step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.instrValids(2), false.B)
@@ -193,36 +195,39 @@ class DecodeModuleTest extends ChiselFlatSpec {
     executeTest("stallOutput"){
       dut => new PeekPokeTester(dut) {
 
-        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrReady, false.B)
-        poke(dut.io.data.valid, false.B)
 
+        step(rfDepth) // RF init
+
+        poke(dut.io.instrIn.valid, true.B)
+        poke(dut.io.data.valid, false.B)
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
+
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_001_01".U)
+        expect(dut.io.instrOut.word, 0.U)
         expect(dut.io.instrOut.pc, 0.U)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_001_01".U)
+        expect(dut.io.instrOut.word, 0.U)
         expect(dut.io.instrOut.pc, 0.U)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_001_01".U)
+        expect(dut.io.instrOut.word, 0.U)
         expect(dut.io.instrOut.pc, 0.U)
 
         poke(dut.io.instrReady, true.B)
-        step(1)
+        step(2)
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.ops(0), 0.U)
@@ -237,13 +242,13 @@ class DecodeModuleTest extends ChiselFlatSpec {
     executeTest("stallOutputInstr"){
       dut => new PeekPokeTester(dut) {
 
-        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.instrReady, true.B)
+        poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
-
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
-        step(1)
+
+        step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.ops(0), 0.U)

@@ -46,12 +46,19 @@ abstract class InstructionLogic(val name : String) {
   /** Returns data that should be written or stored */
   def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = 0.U
 
-  /** Returns memory data that should be written to register file
+  /** Returns data that should be written to register file
     *
     * The data returned by this logic is calculated in the memory
     * stage using data just loaded from data memory
     */
   def getRFWriteData(resultData : UInt, memData : UInt) : UInt = memData
+
+  /** Returns data that should be written to memory
+    *
+    * The data returned by this logic is calculated in the memory
+    * stage using data just loaded from data memory
+    */
+  def getMemWriteData(resultData : UInt, memData : UInt) : UInt = resultData
 }
 
 abstract class ProcessingModule(
@@ -610,10 +617,15 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     writeMem := io.results.writeMem
     readMem := io.results.readMem
     writeRF := io.results.writeRF
-    data := io.results.data
     addr := io.results.addr
     rfIdxIn := io.results.rfIndex
     instrValids := io.results.instrValids
+    data := io.results.data
+    for ((instr, idx) <- instrs.logic.zipWithIndex) {
+      when (instrValids(idx) & io.memDataIn.valid) {
+        data := instr.getMemWriteData(io.results.data, io.memDataIn.bits)
+      }
+    }
   } .otherwise {
     writeMem := writeMemReg
     readMem := readMemReg

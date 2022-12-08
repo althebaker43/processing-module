@@ -138,11 +138,39 @@ class CSRRW extends RISCVInstructionLogic("csrrw") {
   override def getRFIndex(instr: UInt, opIndex: Int): UInt = getISrc(instr)
   override def readMemory(instr : UInt) : Bool = getIDest(instr) =/= 0.U
   override def writeMemory(instr : UInt) : Bool = true.B
+  override def writeRF(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = getIImm(instr)
+  override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0)
+  override def getRFWriteData(resultData: UInt, memData: UInt): UInt = memData
+}
+
+class CSRRS extends RISCVInstructionLogic("csrrs") {
+  override val numOps : Int = 1
+  override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b010".U)
+  override def getRFIndex(instr: UInt, opIndex: Int): UInt = getISrc(instr)
+  override def readMemory(instr : UInt) : Bool = true.B
+  override def writeMemory(instr : UInt) : Bool = getISrc(instr) =/= 0.U 
   override def writeRF(instr : UInt) : Bool = true.B
   override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = getIImm(instr)
   override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
   override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0)
   override def getRFWriteData(resultData: UInt, memData: UInt): UInt = memData
+  override def getMemWriteData(resultData : UInt, memData : UInt) : UInt = memData | resultData
+}
+
+class CSRRC extends RISCVInstructionLogic("csrrc") {
+  override val numOps : Int = 1
+  override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b011".U)
+  override def getRFIndex(instr: UInt, opIndex: Int): UInt = getISrc(instr)
+  override def readMemory(instr : UInt) : Bool = true.B
+  override def writeMemory(instr : UInt) : Bool = getISrc(instr) =/= 0.U 
+  override def writeRF(instr : UInt) : Bool = true.B
+  override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = getIImm(instr)
+  override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0)
+  override def getRFWriteData(resultData: UInt, memData: UInt): UInt = memData
+  override def getMemWriteData(resultData : UInt, memData : UInt) : UInt = memData & ~resultData
 }
 
 class RISCVInstructions extends ProcessingModule.Instructions {
@@ -159,6 +187,8 @@ class RISCVInstructions extends ProcessingModule.Instructions {
   new BLT ::
   new BLTU ::
   new CSRRW ::
+  new CSRRS ::
+  new CSRRC ::
   Nil
 }
 

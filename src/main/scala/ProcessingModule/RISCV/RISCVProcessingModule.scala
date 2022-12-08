@@ -29,7 +29,7 @@ class ADDI extends RISCVInstructionLogic("addi") {
   override val numOps : Int = 1
   override def decode(instr : UInt) : Bool = isOpImm(instr) & (getFunc(instr) === "b000".U) & (getIDest(instr) =/= 0.U)
   override def getRFIndex(instr : UInt, opIndex : Int) : UInt = getISrc(instr)
-  override def writeRF() : Bool = true.B
+  override def writeRF(instr : UInt) : Bool = true.B
   override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
   override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0) + getIImm(instr)
 }
@@ -37,7 +37,7 @@ class ADDI extends RISCVInstructionLogic("addi") {
 class AUIPC extends RISCVInstructionLogic("auipc") {
   override val numOps : Int = 0
   override def decode(instr : UInt) : Bool = isAUIPC(instr) & (getUDest(instr) =/= 0.U)
-  override def writeRF() : Bool = true.B
+  override def writeRF(instr : UInt) : Bool = true.B
   override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getUDest(instr)
   override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = getUImm(instr)
 }
@@ -134,11 +134,11 @@ class BLTU extends RISCVInstructionLogic("bltu") {
 
 class CSRRW extends RISCVInstructionLogic("csrrw") {
   override val numOps : Int = 1
-  override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b001".U) & (getIDest(instr) =/= 0.U)
+  override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b001".U)
   override def getRFIndex(instr: UInt, opIndex: Int): UInt = getISrc(instr)
-  override def readMemory() : Bool = true.B
-  override def writeMemory() : Bool = true.B
-  override def writeRF() : Bool = true.B
+  override def readMemory(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def writeMemory(instr : UInt) : Bool = true.B
+  override def writeRF(instr : UInt) : Bool = true.B
   override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = getIImm(instr)
   override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
   override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0)

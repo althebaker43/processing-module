@@ -13,25 +13,25 @@ class ExecuteModuleTest extends ChiselFlatSpec {
     def logic = 
       new InstructionLogic("incr") {
         def decode ( instr : UInt ) : Bool =  instr(1,0) === 1.U
-        override def readMemory() : Bool = false.B
-        override def writeMemory() : Bool = false.B
-        override def writeRF(): Bool = true.B
+        override def readMemory(instr : UInt) : Bool = false.B
+        override def writeMemory(instr : UInt) : Bool = false.B
+        override def writeRF(instr : UInt): Bool = true.B
         override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getInstrReg(instr)
         override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0) + 1.U
       } ::
     new InstructionLogic("add") {
       def decode ( instr : UInt ) : Bool = instr(1,0) === 2.U
-      override def readMemory() : Bool = false.B
-      override def writeMemory() : Bool = false.B
-      override def writeRF() : Bool = true.B
+      override def readMemory(instr : UInt) : Bool = false.B
+      override def writeMemory(instr : UInt) : Bool = false.B
+      override def writeRF(instr : UInt) : Bool = true.B
       override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getInstrReg(instr)
       override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0) + ops(1)
     } ::
     new InstructionLogic("addpc") {
       def decode ( instr : UInt ) : Bool = instr(1,0) === 3.U
-      override def readMemory() : Bool = false.B
-      override def writeMemory() : Bool = false.B
-      override def writeRF() : Bool = true.B
+      override def readMemory(instr : UInt) : Bool = false.B
+      override def writeMemory(instr : UInt) : Bool = false.B
+      override def writeRF(instr : UInt) : Bool = true.B
       override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getInstrReg(instr)
       override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0) + pc
     } ::

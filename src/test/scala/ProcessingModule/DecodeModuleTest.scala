@@ -18,7 +18,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
             case 1 => 0.U
           }
         }
-        override def writeRF() : Bool = true.B
+        override def writeRF(instr : UInt) : Bool = true.B
         override def getWriteIndex( instr : UInt, ops : Vec[UInt] ) : UInt = instr(4,2)
       } ::
     new InstructionLogic("add") {

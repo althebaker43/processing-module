@@ -29,13 +29,13 @@ abstract class InstructionLogic(val name : String) {
   def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = 0.S
 
   /** Indicates if this instruction reads from data memory */
-  def readMemory() : Bool = false.B
+  def readMemory(instr : UInt) : Bool = false.B
 
   /** Indicates if this instruction writes to data memory */
-  def writeMemory() : Bool = false.B
+  def writeMemory(instr : UInt) : Bool = false.B
 
   /** Indicates if this instruction writes to the register file */
-  def writeRF() : Bool = false.B
+  def writeRF(instr : UInt) : Bool = false.B
 
   /** Returns data address that should be accessed */
   def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = 0.U
@@ -169,7 +169,7 @@ class AdderModule(dWidth : Int)
             case _ => 0.U
           }
         }
-        override def writeRF : Bool = true.B
+        override def writeRF(instr : UInt) : Bool = true.B
         override def getWriteIndex(instr : UInt, ops : Vec[UInt]) = getInstrReg(instr)
         override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) = ops(0) + 1.U
       } ::
@@ -182,8 +182,8 @@ class AdderModule(dWidth : Int)
             case _ => 0.U
           }
         }
-        override def writeRF : Bool = true.B
-        override def readMemory : Bool = true.B
+        override def writeRF(instr : UInt) : Bool = true.B
+        override def readMemory(instr : UInt) : Bool = true.B
         override def getAddress(instr : UInt, ops : Vec[UInt]) = getInstrAddr(instr)
         override def getWriteIndex(instr : UInt, ops : Vec[UInt]) = getInstrReg(instr)
         override def getRFWriteData(resultData : UInt, memData : UInt) : UInt = resultData + memData
@@ -197,7 +197,7 @@ class AdderModule(dWidth : Int)
             case _ => 0.U
           }
         }
-        override def writeMemory : Bool = true.B
+        override def writeMemory(instr : UInt) : Bool = true.B
         override def getAddress(instr : UInt, ops : Vec[UInt]) = getInstrAddr(instr)
         override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) = ops(0)
       } ::
@@ -420,7 +420,7 @@ class DecodeModule(
             }
           }
         }
-        when (instr.writeRF && !hazard) {
+        when (instr.writeRF(instrIn.bits.word) && !hazard) {
           rfInstrAddr := instr.getWriteIndex(instrIn.bits.word, ops)
           rfInstrIn.bits.word := rf(rfInstrAddr).word
           rfInstrIn.bits.isWritten := false.B
@@ -496,10 +496,10 @@ class ExecuteModule(
   results.data := 0.U
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
     when (io.instrValids(idx)) {
-      results.readMem := instr.readMemory
-      results.writeMem := instr.writeMemory
-      results.writeRF := instr.writeRF
-      when (instr.readMemory | instr.writeMemory | instr.writeRF) {
+      results.readMem := instr.readMemory(io.instr.word)
+      results.writeMem := instr.writeMemory(io.instr.word)
+      results.writeRF := instr.writeRF(io.instr.word)
+      when (results.readMem | results.writeMem | results.writeRF) {
         results.addr := instr.getAddress(io.instr.word, io.ops)
         results.rfIndex := instr.getWriteIndex(io.instr.word, io.ops)
         results.data := instr.getData(io.instr.word, io.instr.pc, io.ops)
@@ -545,11 +545,23 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val rfIdxIn = Wire(UInt(rfIdxWidth.W))
   val instrValids = Wire(Vec(numInstrs, Bool()))
 
+  val stepLoad :: stepStore :: Nil = util.Enum(2)
+  val stepReg = RegInit(stepLoad)
+  val step = Wire(UInt(stepLoad.getWidth.W))
+  step := stepLoad
+  when (writeMem & readMem) {
+    step := stepReg
+  } .elsewhen (writeMem) {
+    step := stepStore
+  } .elsewhen (readMem) {
+    step := stepLoad
+  }
+
   io.memAddr.valid := writeMem | readMem
   io.memAddr.bits := addr
-  io.memDataOut.valid := writeMem
+  io.memDataOut.valid := writeMem & (step === stepStore)
   io.memDataOut.bits := data
-  io.memDataIn.ready := readMem
+  io.memDataIn.ready := readMem & (step === stepLoad)
 
   val rfValidReg = RegInit(false.B)
   val rfDataReg = RegInit(0.U(dataWidth.W))
@@ -572,6 +584,9 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   }
   memBusyReg := memBusy
   io.resultsReady := !memBusy
+  when (writeMem & readMem) {
+    io.resultsReady := !memBusy & (step === stepStore)
+  }
 
   when (memBusy) {
     writeMemReg := writeMem
@@ -581,6 +596,14 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     addrReg := addr
     rfIdxInReg := rfIdxIn
     instrValidsReg := instrValids
+  }
+
+  when (writeMem & readMem & !memBusy) {
+    when (stepReg === stepStore) {
+      stepReg := stepLoad
+    } .otherwise {
+      stepReg := stepReg + 1.U
+    }
   }
 
   when (!memBusyReg) {

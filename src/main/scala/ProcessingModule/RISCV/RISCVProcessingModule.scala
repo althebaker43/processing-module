@@ -10,6 +10,8 @@ abstract class RISCVInstructionLogic(name : String) extends InstructionLogic(nam
   def isAUIPC(instr : UInt) : Bool = getOpcode(instr) === "b00_101".U
   def isBranch(instr : UInt) : Bool = getOpcode(instr) === "b11_000".U
   def isSystem(instr : UInt) : Bool = getOpcode(instr) === "b11_100".U
+  def isJAL(instr : UInt) : Bool = getOpcode(instr) === "b11_011".U
+  def isJALR(instr : UInt) : Bool = getOpcode(instr) === "b11_001".U
 
   def getFunc(instr : UInt) : UInt = instr(14,12)
 
@@ -23,6 +25,9 @@ abstract class RISCVInstructionLogic(name : String) extends InstructionLogic(nam
   def getBSrc1(instr : UInt) : UInt = instr(19,15)
   def getBSrc2(instr : UInt) : UInt = instr(24,20)
   def getBImm(instr : UInt) : UInt = util.Cat(instr(31), instr(7), instr(30,25), instr(11,8), 0.U(1.W))
+
+  def getJDest(instr : UInt) : UInt = instr(11,7)
+  def getJImm(instr : UInt) : UInt = util.Cat(instr(31), instr(19,12), instr(20), instr(30,21), 0.U(1.W))
 }
 
 class ADDI extends RISCVInstructionLogic("addi") {
@@ -173,6 +178,62 @@ class CSRRC extends RISCVInstructionLogic("csrrc") {
   override def getMemWriteData(resultData : UInt, memData : UInt) : UInt = memData & ~resultData
 }
 
+class CSRRWI extends RISCVInstructionLogic("csrrwi") {
+  override val numOps : Int = 0
+  override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b101".U)
+  override def readMemory(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def writeMemory(instr : UInt) : Bool = true.B
+  override def writeRF(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = getIImm(instr)
+  override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = getISrc(instr)
+  override def getRFWriteData(resultData: UInt, memData: UInt): UInt = memData
+}
+
+class CSRRSI extends RISCVInstructionLogic("csrrsi") {
+  override val numOps : Int = 0
+  override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b110".U)
+  override def readMemory(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def writeMemory(instr : UInt) : Bool = true.B
+  override def writeRF(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = getIImm(instr)
+  override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = getISrc(instr)
+  override def getRFWriteData(resultData: UInt, memData: UInt): UInt = memData | resultData
+}
+
+class CSRRCI extends RISCVInstructionLogic("csrrci") {
+  override val numOps : Int = 0
+  override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b111".U)
+  override def readMemory(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def writeMemory(instr : UInt) : Bool = true.B
+  override def writeRF(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = getIImm(instr)
+  override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = getISrc(instr)
+  override def getRFWriteData(resultData: UInt, memData: UInt): UInt = memData & ~resultData
+}
+
+class JAL extends RISCVInstructionLogic("jal") {
+  override val numOps : Int = 0
+  override def decode(instr : UInt) : Bool = isJAL(instr)
+  override def branch() : Bool = true.B
+  override def relativeBranch() : Bool = true.B
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = util.Cat(getJImm(instr), 0.U(1.W)).asSInt
+  override def writeRF(instr : UInt) : Bool = getJDest(instr) =/= 0.U
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = pc + 4.U
+}
+
+class JALR extends RISCVInstructionLogic("jalr") {
+  override val numOps : Int = 1
+  override def decode(instr : UInt) : Bool = isJALR(instr)
+  override def getRFIndex(instr : UInt, opIndex : Int) : UInt = getISrc(instr)
+  override def branch() : Bool = true.B
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = util.Cat(getIImm(instr).asSInt + util.Cat(0.U(1.W), ops(0)).asSInt, 0.U(1.W)).asSInt
+  override def writeRF(instr : UInt) : Bool = getIDest(instr) =/= 0.U
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = pc + 4.U
+}
+
 class RISCVInstructions extends ProcessingModule.Instructions {
 
   override def logic = new ProcessingModule.InstructionLogic("dummy"){
@@ -189,6 +250,11 @@ class RISCVInstructions extends ProcessingModule.Instructions {
   new CSRRW ::
   new CSRRS ::
   new CSRRC ::
+  new CSRRWI ::
+  new CSRRSI ::
+  new CSRRCI ::
+  new JAL ::
+  new JALR ::
   Nil
 }
 

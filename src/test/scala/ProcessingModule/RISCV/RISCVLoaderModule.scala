@@ -111,9 +111,6 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
   val prevPC = RegNext(pc.bits)
   when (instr.valid) {
     printf("Sim: PC: %x, Instr: %x\n", prevPC, instr.bits)
-    // when (instr.bits === 0x73.U) {
-    //   io.status.valid := true.B
-    // }
   }
 
   when (memDataInAddr.valid &

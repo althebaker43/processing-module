@@ -285,15 +285,9 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       instrReg.pc := 0.U
       instrReg.word := 0.U
 
-      when (io.branchPCIn.valid) {
-        stateReg := stateBranch
-        pcReg := branchPC
-        io.pcOut.valid := false.B
-      } .elsewhen (!io.memInstr.valid) {
+      when (!io.memInstr.valid) {
         stateReg := stateWaitMem
       } .otherwise {
-        //instrReg.pc := pcReg
-        //instrReg.word := io.memInstr.bits
         when (io.instr.ready) {
           stateReg := stateInstrOut
           pcReg := nextPC
@@ -309,13 +303,7 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       io.memInstr.ready := true.B
       io.pcOut.valid := true.B
 
-      when (io.branchPCIn.valid) {
-        stateReg := stateBranch
-        pcReg := branchPC
-        io.pcOut.valid := false.B
-      } .elsewhen (io.memInstr.valid) {
-        //instrReg.pc := pcReg
-        //instrReg.word := io.memInstr.bits
+      when (io.memInstr.valid) {
         when (io.instr.ready) {
           stateReg := stateInstrOut
           pcReg := nextPC
@@ -331,13 +319,7 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       io.memInstr.ready := false.B
       io.pcOut.valid := false.B
 
-      when (io.branchPCIn.valid) {
-        stateReg := stateBranch
-        pcReg := branchPC
-        io.pcOut.valid := false.B
-      } .elsewhen (io.memInstr.valid) {
-        //instrReg.pc := pcReg
-        //instrReg.word := io.memInstr.bits
+      when (io.memInstr.valid) {
         when (io.instr.ready) {
           stateReg := stateInstrOut
           pcReg := nextPC
@@ -351,15 +333,9 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       io.memInstr.ready := true.B
       io.pcOut.valid := true.B
 
-      when (io.branchPCIn.valid) {
-        stateReg := stateBranch
-        pcReg := branchPC
-        io.pcOut.valid := false.B
-      } .elsewhen (!io.memInstr.valid) {
+      when (!io.memInstr.valid) {
         stateReg := stateWaitMem
       } .otherwise {
-        //instrReg.pc := pcReg
-        //instrReg.word := io.memInstr.bits
         when (io.instr.ready) {
           pcReg := nextPC
         } .otherwise {
@@ -374,15 +350,9 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       io.memInstr.ready := true.B
       io.pcOut.valid := true.B
 
-      when (io.branchPCIn.valid) {
-        stateReg := stateBranch
-        pcReg := branchPC
-        io.pcOut.valid := false.B
-      } .elsewhen (!io.memInstr.valid) {
+      when (!io.memInstr.valid) {
         stateReg := stateWaitMem
       } .otherwise {
-        //instrReg.pc := pcReg
-        //instrReg.word := io.memInstr.bits
         when (io.instr.ready) {
           stateReg := stateInstrOut
           pcReg := nextPC
@@ -391,6 +361,11 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
         }
       }
     }
+  }
+
+  when (io.branchPCIn.valid) {
+    stateReg := stateBranch
+    pcReg := branchPC
   }
 }
 

@@ -2,6 +2,7 @@
 package ProcessingModule
 
 import chisel3._
+import chisel3.util.{switch, is}
 
 abstract class Instructions {
 
@@ -251,48 +252,145 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
     val instr = util.Decoupled(new Instruction(iWidth, pcWidth))
   })
 
-  val memReadyReg = RegInit(false.B)
-  io.memInstr.ready := memReadyReg
-  when (io.memInstr.valid & memReadyReg & ~io.instr.ready) {
-    memReadyReg := false.B
-  } .elsewhen (~io.memInstr.valid & ~memReadyReg & io.instr.ready) {
-    memReadyReg := true.B
-  }
-
-  val instrReg = Reg(new Instruction(iWidth, pcWidth))
-  val instrValid = Wire(Bool())
-  val instrPCReg = RegInit(0.U(pcWidth.W))
-  when (io.pcOut.valid) {
-    instrPCReg := io.pcOut.bits
-  }
-  instrValid := io.memInstr.valid & memReadyReg & ~io.branchPCIn.valid & io.instr.ready
-  when (io.memInstr.valid & ~io.branchPCIn.valid) {
-    instrReg.word := io.memInstr.bits
-    instrReg.pc := instrPCReg
-  }
-  val instrValidReg = RegNext(instrValid)
-  io.instr.bits := instrReg
-  io.instr.valid := instrValidReg
+  val branchPC = Wire(UInt(pcWidth.W))
 
   val pcReg = RegInit(0.U(pcWidth.W))
-  when (io.memInstr.valid & memReadyReg) {
-    when (~io.branchPCIn.valid) {
-      pcReg := io.pcOut.bits + (1 << (pcAlign - 1)).U
-    } .otherwise {
-      pcReg := io.pcOut.bits
-    }
+  val instrReg = Reg(new Instruction(iWidth, pcWidth))
+  when (io.memInstr.valid) {
+    instrReg.pc := Mux(io.branchPCIn.valid, branchPC, pcReg)
+    instrReg.word := io.memInstr.bits
   }
-  val pcValidReg = RegNext(~io.memInstr.valid | memReadyReg)
-  val branchValidReg = RegNext(io.branchPCIn.valid)
-  io.pcOut.valid := pcValidReg
-  when (io.branchPCIn.valid & (~branchValidReg)) {
-    when (~io.relativeBranch) {
-      io.pcOut.bits := io.branchPCIn.bits.asUInt
-    } .otherwise {
-      io.pcOut.bits := (pcReg.asSInt + io.branchPCIn.bits).asUInt
+
+  val stateInit :: stateWaitMem :: stateWaitOut :: stateInstrOut :: stateBranch :: Nil = util.Enum(5)
+  val stateReg = RegInit(stateInit)
+
+  io.instr.valid := false.B
+  io.instr.bits := instrReg
+  io.memInstr.ready := false.B
+  io.pcOut.valid := false.B
+  io.pcOut.bits := pcReg
+
+  val nextPC = Wire(UInt(pcWidth.W))
+  nextPC := pcReg + (1 << (pcAlign - 1)).U
+  branchPC := Mux(io.relativeBranch, (pcReg.asSInt + io.branchPCIn.bits).asUInt, io.branchPCIn.bits.asUInt)
+
+  switch (stateReg) {
+
+    is (stateInit) {
+
+      io.instr.valid := false.B
+      io.memInstr.ready := true.B
+      io.pcOut.valid := true.B
+
+      instrReg.pc := 0.U
+      instrReg.word := 0.U
+
+      when (io.branchPCIn.valid) {
+        stateReg := stateBranch
+        pcReg := branchPC
+        io.pcOut.valid := false.B
+      } .elsewhen (!io.memInstr.valid) {
+        stateReg := stateWaitMem
+      } .otherwise {
+        //instrReg.pc := pcReg
+        //instrReg.word := io.memInstr.bits
+        when (io.instr.ready) {
+          stateReg := stateInstrOut
+          pcReg := nextPC
+        } .otherwise {
+          stateReg := stateWaitOut
+        }
+      }
     }
-  } .otherwise {
-    io.pcOut.bits := pcReg
+
+    is (stateWaitMem) {
+
+      io.instr.valid := false.B
+      io.memInstr.ready := true.B
+      io.pcOut.valid := true.B
+
+      when (io.branchPCIn.valid) {
+        stateReg := stateBranch
+        pcReg := branchPC
+        io.pcOut.valid := false.B
+      } .elsewhen (io.memInstr.valid) {
+        //instrReg.pc := pcReg
+        //instrReg.word := io.memInstr.bits
+        when (io.instr.ready) {
+          stateReg := stateInstrOut
+          pcReg := nextPC
+        } .otherwise {
+          stateReg := stateWaitOut
+        }
+      }
+    }
+
+    is (stateWaitOut) {
+
+      io.instr.valid := false.B
+      io.memInstr.ready := false.B
+      io.pcOut.valid := false.B
+
+      when (io.branchPCIn.valid) {
+        stateReg := stateBranch
+        pcReg := branchPC
+        io.pcOut.valid := false.B
+      } .elsewhen (io.memInstr.valid) {
+        //instrReg.pc := pcReg
+        //instrReg.word := io.memInstr.bits
+        when (io.instr.ready) {
+          stateReg := stateInstrOut
+          pcReg := nextPC
+        }
+      }
+    }
+
+    is (stateInstrOut) {
+
+      io.instr.valid := true.B
+      io.memInstr.ready := true.B
+      io.pcOut.valid := true.B
+
+      when (io.branchPCIn.valid) {
+        stateReg := stateBranch
+        pcReg := branchPC
+        io.pcOut.valid := false.B
+      } .elsewhen (!io.memInstr.valid) {
+        stateReg := stateWaitMem
+      } .otherwise {
+        //instrReg.pc := pcReg
+        //instrReg.word := io.memInstr.bits
+        when (io.instr.ready) {
+          pcReg := nextPC
+        } .otherwise {
+          stateReg := stateWaitOut
+        }
+      }
+    }
+
+    is (stateBranch) {
+
+      io.instr.valid := false.B
+      io.memInstr.ready := true.B
+      io.pcOut.valid := true.B
+
+      when (io.branchPCIn.valid) {
+        stateReg := stateBranch
+        pcReg := branchPC
+        io.pcOut.valid := false.B
+      } .elsewhen (!io.memInstr.valid) {
+        stateReg := stateWaitMem
+      } .otherwise {
+        //instrReg.pc := pcReg
+        //instrReg.word := io.memInstr.bits
+        when (io.instr.ready) {
+          stateReg := stateInstrOut
+          pcReg := nextPC
+        } .otherwise {
+          stateReg := stateWaitOut
+        }
+      }
+    }
   }
 }
 

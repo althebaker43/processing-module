@@ -222,8 +222,10 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
           List(new InstrReq(addr = 1), new InstrRcv(instr = incr1(0))),
           Nil,
           Nil,
-          List(new InstrReq(addr = 2), new InstrRcv(instr = bgt(0))),
-          List(new InstrReq(addr = 4), new InstrRcv(instr = store(0, 10))),
+          List(new InstrRcv(instr = bgt(0))),
+          Nil,
+          List(new InstrReq(addr = 3)),
+          List(new InstrRcv(instr = store(0, 10))),
           Nil,
           Nil,
           List(new StoreReq(10, 1)))

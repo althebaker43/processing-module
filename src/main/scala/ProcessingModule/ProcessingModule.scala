@@ -242,6 +242,152 @@ class Instruction(iWidth : Int, pcWidth : Int) extends Bundle {
   override def cloneType = (new Instruction(iWidth, pcWidth)).asInstanceOf[this.type]
 }
 
+class PCGenerator(pcWidth : Int, pcAlign : Int) extends Module {
+
+  val io = IO(new Bundle {
+    val pc = util.Decoupled(UInt(pcWidth.W))
+  })
+
+  val stateInit :: statePCOut :: stateWait :: Nil = util.Enum(3)
+  val stateReg = RegInit(stateInit)
+  val nextState = Wire(UInt())
+  stateReg := nextState
+
+  val pc = RegInit(0.S(pcWidth.W))
+
+  nextState := stateReg
+  switch (stateReg) {
+
+    is (stateInit) {
+      when (io.pc.ready) {
+        nextState := statePCOut
+      }
+    }
+
+    is (statePCOut) {
+      when (!io.pc.ready) {
+        nextState := stateWait
+      }
+    }
+
+    is (stateWait) {
+      when (io.pc.ready) {
+        nextState := statePCOut
+      }
+    }
+  }
+
+  when (stateReg === stateInit) {
+    pc := 0.S
+  } .elsewhen (nextState === statePCOut) {
+    pc := pc + (1.S << (pcAlign - 1))
+  }
+
+  io.pc.valid := (stateReg === statePCOut)
+  io.pc.bits := pc.asUInt
+}
+
+class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
+
+  val io = IO(new Bundle {
+    val pc = Flipped(util.Decoupled(UInt(pcWidth.W)))
+    val memInstr = Flipped(util.Decoupled(UInt(iWidth.W)))
+    val instr = util.Decoupled(new Instruction(iWidth, pcWidth))
+  })
+
+  val stateInit :: stateReady :: stateBufPC :: stateInstrOut :: stateInstrOutBufPC :: stateWait :: Nil = util.Enum(6)
+  val stateReg = RegInit(stateInit)
+  val nextState = Wire(UInt())
+  stateReg := nextState
+
+  val bufPCReg = RegInit(0.U(pcWidth.W))
+  val bufPCReg2 = RegNext(0.U(pcWidth.W))
+
+  nextState := stateReg
+  switch (stateReg) {
+
+    is (stateInit) {
+      printf("PCBuffer state = init\n")
+      when (io.instr.ready) {
+        nextState := stateReady
+      }
+    }
+
+    is (stateReady) {
+      printf("PCBuffer state = ready\n")
+      when (io.pc.valid) {
+        nextState := stateBufPC
+      }
+    }
+
+    is (stateBufPC) {
+      printf("PCBuffer state = buf\n")
+      when (io.memInstr.valid) {
+        when (io.pc.valid) {
+          nextState := stateInstrOutBufPC
+        } .otherwise {
+          nextState := stateInstrOut
+        }
+      } .otherwise {
+        nextState := stateInit
+      }
+    }
+
+    is (stateInstrOut) {
+      printf("PCBuffer state = out\n")
+      nextState := stateWait
+    }
+
+    is (stateInstrOutBufPC) {
+      printf("PCBuffer state = outBuf\n")
+      when (!io.memInstr.valid | !io.pc.valid) {
+        nextState := stateWait
+      }
+    }
+
+    is (stateWait) {
+      printf("PCBuffer state = wait\n")
+      when (io.pc.valid) {
+        nextState := stateBufPC
+      } .elsewhen (io.memInstr.valid) {
+        nextState := stateInstrOutBufPC
+      }
+    }
+  }
+
+  // PC buffer registers
+  bufPCReg2 := bufPCReg
+  when (stateReg === stateInit) {
+    bufPCReg := 0.U
+    bufPCReg2 := 0.U
+  } .elsewhen (io.pc.valid && (nextState =/= stateWait)) {
+    bufPCReg := io.pc.bits
+  }
+
+  // Ready output
+  io.memInstr.ready := io.instr.ready
+  io.pc.ready := io.instr.ready && (nextState =/= stateWait)
+
+  // Instruction output
+  io.instr.valid := false.B
+  io.instr.bits.word := 0.U
+  io.instr.bits.pc := 0.U
+  when (io.memInstr.valid) {
+    when ((nextState === stateInstrOut) ||
+      (nextState === stateInstrOutBufPC) ||
+      (stateReg === stateInstrOut) ||
+      (stateReg === stateInstrOutBufPC)) {
+      io.instr.valid := true.B
+      io.instr.bits.word := io.memInstr.bits
+      when (stateReg === stateInstrOutBufPC) {
+        io.instr.bits.pc := bufPCReg2
+      } .otherwise {
+        io.instr.bits.pc := bufPCReg
+      }
+    }
+  }
+}
+
 class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
   val io = IO(new Bundle {
@@ -253,120 +399,17 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
   })
 
   val branchPC = Wire(UInt(pcWidth.W))
-
   val pcReg = RegInit(0.U(pcWidth.W))
-  val instrReg = Reg(new Instruction(iWidth, pcWidth))
-  when (io.memInstr.valid) {
-    instrReg.pc := Mux(io.branchPCIn.valid, branchPC, pcReg)
-    instrReg.word := io.memInstr.bits
-  }
-
-  val stateInit :: stateWaitMem :: stateWaitOut :: stateInstrOut :: stateBranch :: Nil = util.Enum(5)
-  val stateReg = RegInit(stateInit)
-
-  io.instr.valid := false.B
-  io.instr.bits := instrReg
-  io.memInstr.ready := false.B
-  io.pcOut.valid := false.B
-  io.pcOut.bits := pcReg
-
   val nextPC = Wire(UInt(pcWidth.W))
   nextPC := pcReg + (1 << (pcAlign - 1)).U
   branchPC := Mux(io.relativeBranch, (pcReg.asSInt + io.branchPCIn.bits).asUInt, io.branchPCIn.bits.asUInt)
 
-  switch (stateReg) {
-
-    is (stateInit) {
-
-      io.instr.valid := false.B
-      io.memInstr.ready := true.B
-      io.pcOut.valid := true.B
-
-      instrReg.pc := 0.U
-      instrReg.word := 0.U
-
-      when (!io.memInstr.valid) {
-        stateReg := stateWaitMem
-      } .otherwise {
-        when (io.instr.ready) {
-          stateReg := stateInstrOut
-          pcReg := nextPC
-        } .otherwise {
-          stateReg := stateWaitOut
-        }
-      }
-    }
-
-    is (stateWaitMem) {
-
-      io.instr.valid := false.B
-      io.memInstr.ready := true.B
-      io.pcOut.valid := true.B
-
-      when (io.memInstr.valid) {
-        when (io.instr.ready) {
-          stateReg := stateInstrOut
-          pcReg := nextPC
-        } .otherwise {
-          stateReg := stateWaitOut
-        }
-      }
-    }
-
-    is (stateWaitOut) {
-
-      io.instr.valid := false.B
-      io.memInstr.ready := false.B
-      io.pcOut.valid := false.B
-
-      when (io.memInstr.valid) {
-        when (io.instr.ready) {
-          stateReg := stateInstrOut
-          pcReg := nextPC
-        }
-      }
-    }
-
-    is (stateInstrOut) {
-
-      io.instr.valid := true.B
-      io.memInstr.ready := true.B
-      io.pcOut.valid := true.B
-
-      when (!io.memInstr.valid) {
-        stateReg := stateWaitMem
-      } .otherwise {
-        when (io.instr.ready) {
-          pcReg := nextPC
-        } .otherwise {
-          stateReg := stateWaitOut
-        }
-      }
-    }
-
-    is (stateBranch) {
-
-      io.instr.valid := false.B
-      io.memInstr.ready := true.B
-      io.pcOut.valid := true.B
-
-      when (!io.memInstr.valid) {
-        stateReg := stateWaitMem
-      } .otherwise {
-        when (io.instr.ready) {
-          stateReg := stateInstrOut
-          pcReg := nextPC
-        } .otherwise {
-          stateReg := stateWaitOut
-        }
-      }
-    }
-  }
-
-  when (io.branchPCIn.valid) {
-    stateReg := stateBranch
-    pcReg := branchPC
-  }
+  val pcGen = Module(new PCGenerator(pcWidth, pcAlign))
+  val pcBuf = Module(new PCBuffer(iWidth, pcWidth, pcAlign))
+  pcBuf.io.pc <> pcGen.io.pc
+  pcBuf.io.memInstr <> io.memInstr
+  io.instr <> pcBuf.io.instr
+  io.pcOut := pcGen.io.pc
 }
 
 class RFWord(rfWidth : Int) extends Bundle {

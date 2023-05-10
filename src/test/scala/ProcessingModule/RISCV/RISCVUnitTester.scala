@@ -26,7 +26,7 @@ class RISCVUnitTester extends ChiselFlatSpec {
 
   behavior of "RISCV"
 
-  ignore should "initialize the loader" in {
+  it should "initialize the loader" in {
     executeTest("rv32ui-p-simple") should be (true)
   }
 }

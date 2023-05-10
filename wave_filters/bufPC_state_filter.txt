@@ -1,0 +1,6 @@
+000 init
+001 ready
+010 buf
+011 out
+100 outBuf
+101 wait

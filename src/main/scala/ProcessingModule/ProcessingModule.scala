@@ -300,8 +300,8 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
   val nextState = Wire(UInt())
   stateReg := nextState
 
-  val bufPCReg = RegInit(0.U(pcWidth.W))
-  val bufPCReg2 = RegNext(0.U(pcWidth.W))
+  val pcQueueIn = Wire(util.Decoupled(UInt(pcWidth.W)))
+  val pcQueue = util.Queue(pcQueueIn, 2)
 
   nextState := stateReg
   switch (stateReg) {
@@ -323,69 +323,78 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
     is (stateBufPC) {
       printf("PCBuffer state = buf\n")
       when (io.memInstr.valid) {
-        when (io.pc.valid) {
-          nextState := stateInstrOutBufPC
-        } .otherwise {
-          nextState := stateInstrOut
-        }
-      } .otherwise {
-        nextState := stateInit
+        nextState := stateInstrOut
       }
+      // when (io.memInstr.valid) {
+      //   when (io.pc.valid) {
+      //     nextState := stateInstrOutBufPC
+      //   } .otherwise {
+      //     nextState := stateInstrOut
+      //   }
+      // } .otherwise {
+      //   nextState := stateWait
+      // }
     }
 
     is (stateInstrOut) {
       printf("PCBuffer state = out\n")
-      nextState := stateWait
+      // nextState := stateWait
     }
 
     is (stateInstrOutBufPC) {
       printf("PCBuffer state = outBuf\n")
-      when (!io.memInstr.valid | !io.pc.valid) {
-        nextState := stateWait
-      }
+      // when (!io.memInstr.valid | !io.pc.valid) {
+      //   nextState := stateWait
+      // }
     }
 
     is (stateWait) {
       printf("PCBuffer state = wait\n")
-      when (io.pc.valid) {
-        nextState := stateBufPC
-      } .elsewhen (io.memInstr.valid) {
-        nextState := stateInstrOutBufPC
-      }
+      // when (io.pc.valid) {
+      //   nextState := stateBufPC
+      // } .elsewhen (io.memInstr.valid) {
+      //   nextState := stateInstrOutBufPC
+      // }
     }
   }
 
-  // PC buffer registers
-  bufPCReg2 := bufPCReg
-  when (stateReg === stateInit) {
-    bufPCReg := 0.U
-    bufPCReg2 := 0.U
-  } .elsewhen (io.pc.valid && (nextState =/= stateWait)) {
-    bufPCReg := io.pc.bits
-  }
+  pcQueueIn.valid := io.pc.valid // & ((nextState === stateBufPC) | (nextState === stateInstrOutBufPC))
+  pcQueueIn.bits := io.pc.bits
+  pcQueue.ready := io.instr.ready & (stateReg === stateInstrOut)
 
-  // Ready output
-  io.memInstr.ready := io.instr.ready
-  io.pc.ready := io.instr.ready && (nextState =/= stateWait)
+  io.pc.ready := pcQueueIn.ready | (nextState === stateInstrOut)
+  io.memInstr.ready := stateReg =/= stateInit
+  io.instr.valid := pcQueue.valid & (stateReg === stateInstrOut)
+  io.instr.bits.pc := pcQueue.bits
+  io.instr.bits.word := io.memInstr.bits
 
-  // Instruction output
-  io.instr.valid := false.B
-  io.instr.bits.word := 0.U
-  io.instr.bits.pc := 0.U
-  when (io.memInstr.valid) {
-    when ((nextState === stateInstrOut) ||
-      (nextState === stateInstrOutBufPC) ||
-      (stateReg === stateInstrOut) ||
-      (stateReg === stateInstrOutBufPC)) {
-      io.instr.valid := true.B
-      io.instr.bits.word := io.memInstr.bits
-      when (stateReg === stateInstrOutBufPC) {
-        io.instr.bits.pc := bufPCReg2
-      } .otherwise {
-        io.instr.bits.pc := bufPCReg
-      }
-    }
-  }
+  // // Ready output
+  // io.memInstr.ready := io.instr.ready
+
+  // // PC input
+  // pcQueueIn.bits := io.pc.bits
+  // pcQueueIn.valid := io.pc.valid
+  // io.pc.ready := pcQueueIn.ready & (stateReg =/= stateBufPC)
+
+  // // Instruction output
+  // io.instr.valid := false.B
+  // io.instr.bits.word := 0.U
+  // io.instr.bits.pc := 0.U
+  // pcQueue.ready := false.B
+  // when (io.memInstr.valid) {
+  //   when ((nextState === stateInstrOut) ||
+  //     (nextState === stateInstrOutBufPC) ||
+  //     (stateReg === stateInstrOut) ||
+  //     (stateReg === stateInstrOutBufPC)) {
+  //     io.instr.valid := pcQueue.valid
+  //     io.instr.bits.pc := pcQueue.bits
+  //     io.instr.bits.word := io.memInstr.bits
+  //     when ((stateReg === stateInstrOut) ||
+  //       (stateReg === stateInstrOutBufPC)) {
+  //       pcQueue.ready := io.instr.ready
+  //     }
+  //   }
+  // }
 }
 
 class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {

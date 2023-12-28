@@ -539,25 +539,25 @@ class PCBufferTester extends ChiselFlatSpec {
         poke(dut.io.memInstr.bits, 1)
         step(1)
 
-        // Cycle 3; State out
+        // Cycle 3; State outBuf
         expect(dut.io.pc.ready, 1)
         expect(dut.io.memInstr.ready, 1)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.pc, 0)
         expect(dut.io.instr.bits.word, 1)
         poke(dut.io.pc.valid, 1)
-        poke(dut.io.pc.bits, 1)
+        poke(dut.io.pc.bits, 2)
         poke(dut.io.memInstr.valid, 0)
         step(1)
 
-        // // Cycle 4; State wait
-        // expect(dut.io.pc.ready, 0)
-        // expect(dut.io.memInstr.ready, 1)
-        // expect(dut.io.instr.valid, 0)
-        // poke(dut.io.pc.bits, 2)
-        // poke(dut.io.memInstr.valid, 1)
-        // poke(dut.io.memInstr.bits, 4)
-        // step(1)
+        // Cycle 4; State wait
+        expect(dut.io.pc.ready, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.instr.valid, 0)
+        poke(dut.io.pc.bits, 3)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 4)
+        step(1)
 
         // // Cycle 5; State outBuf
         // expect(dut.io.pc.ready, 1)

@@ -301,7 +301,7 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
   stateReg := nextState
 
   val pcQueueIn = Wire(util.Decoupled(UInt(pcWidth.W)))
-  val pcQueue = util.Queue(pcQueueIn, 2)
+  val pcQueue = util.Queue(pcQueueIn, 2, pipe=true)
 
   nextState := stateReg
   switch (stateReg) {
@@ -338,6 +338,9 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
     is (stateInstrOut) {
       printf("PCBuffer state = out\n")
+      when (!io.memInstr.valid) {
+        nextState := stateWait
+      }
       // nextState := stateWait
     }
 
@@ -358,7 +361,7 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
     }
   }
 
-  pcQueueIn.valid := io.pc.valid // & ((nextState === stateBufPC) | (nextState === stateInstrOutBufPC))
+  pcQueueIn.valid := io.pc.valid // & (nextState === stateBufPC)
   pcQueueIn.bits := io.pc.bits
   pcQueue.ready := io.instr.ready & (stateReg === stateInstrOut)
 

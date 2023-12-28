@@ -353,6 +353,9 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
     is (stateWait) {
       printf("PCBuffer state = wait\n")
+      when (io.memInstr.valid) {
+        nextState := stateInstrOut
+      }
       // when (io.pc.valid) {
       //   nextState := stateBufPC
       // } .elsewhen (io.memInstr.valid) {

@@ -559,31 +559,31 @@ class PCBufferTester extends ChiselFlatSpec {
         poke(dut.io.memInstr.bits, 4)
         step(1)
 
-        // // Cycle 5; State outBuf
-        // expect(dut.io.pc.ready, 1)
-        // expect(dut.io.memInstr.ready, 1)
-        // expect(dut.io.instr.valid, 1)
-        // expect(dut.io.instr.bits.pc, 1)
-        // expect(dut.io.instr.bits.word, 4)
-        // poke(dut.io.pc.bits, 3)
-        // poke(dut.io.memInstr.valid, 0)
-        // step(1)
+        // Cycle 5; State out
+        expect(dut.io.pc.ready, 1)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.pc, 1)
+        expect(dut.io.instr.bits.word, 4)
+        poke(dut.io.pc.bits, 4)
+        poke(dut.io.memInstr.valid, 0)
+        step(1)
 
-        // // Cycle 6
-        // expect(dut.io.pc.ready, 0)
-        // expect(dut.io.memInstr.ready, 1)
-        // expect(dut.io.instr.valid, 0)
-        // poke(dut.io.pc.bits, 4)
-        // poke(dut.io.memInstr.valid, 1)
-        // poke(dut.io.memInstr.bits, 7)
-        // step(1)
+        // Cycle 6
+        expect(dut.io.pc.ready, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.instr.valid, 0)
+        poke(dut.io.pc.bits, 5)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 7)
+        step(1)
 
-        // // Cycle 7
-        // expect(dut.io.pc.ready, 1)
-        // expect(dut.io.memInstr.ready, 1)
-        // expect(dut.io.instr.valid, 1)
-        // expect(dut.io.instr.bits.pc, 2)
-        // expect(dut.io.instr.bits.word, 7)
+        // Cycle 7
+        expect(dut.io.pc.ready, 1)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.pc, 2)
+        expect(dut.io.instr.bits.word, 7)
       }
     } should be (true)
   }

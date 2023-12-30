@@ -322,7 +322,7 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
     is (stateBufPC) {
       printf("PCBuffer state = buf\n")
-      when (io.memInstr.valid) {
+      when (io.memInstr.valid & io.instr.ready) {
         nextState := stateInstrOut
       }
       // when (io.memInstr.valid) {
@@ -353,7 +353,7 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
     is (stateWait) {
       printf("PCBuffer state = wait\n")
-      when (io.memInstr.valid) {
+      when (io.memInstr.valid & io.instr.ready) {
         nextState := stateInstrOut
       }
       // when (io.pc.valid) {
@@ -366,7 +366,7 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
   pcQueueIn.valid := io.pc.valid // & (nextState === stateBufPC)
   pcQueueIn.bits := io.pc.bits
-  pcQueue.ready := io.instr.ready & (stateReg === stateInstrOut)
+  pcQueue.ready := (stateReg === stateInstrOut)
 
   io.pc.ready := pcQueueIn.ready | (nextState === stateInstrOut)
   io.memInstr.ready := stateReg =/= stateInit

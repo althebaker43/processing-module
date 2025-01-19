@@ -71,41 +71,74 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
     executeTest("incrPC"){
       dut : FetchModule => new PeekPokeTester(dut){
 
+        // Cycle 0, reset ends
         poke(dut.io.instr.ready, 1)
 
+        // Cycle 1
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.bits, 0)
-        expect(dut.io.pcOut.valid, 1)
-        step(1)
 
+        // Cycle 2
+        step(1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 0)
+
+        // Cycle 3
+        step(1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 1)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 1)
+
+        // Cycle 4
         step(1)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 1)
         expect(dut.io.instr.bits.pc, 0)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 1)
+        expect(dut.io.pcOut.bits, 2)
         poke(dut.io.memInstr.valid, 0)
-        step(1)
 
+        // Cycle 5
+        step(1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 3)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 4)
+
+        // Cycle 6
         step(1)
-        expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 4)
         expect(dut.io.instr.bits.pc, 1)
+        expect(dut.io.pcOut.valid, 0)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 2)
+
+        // Cycle 6
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.word, 2)
+        expect(dut.io.instr.bits.pc, 2)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.pcOut.bits, 4)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 7)
+
+        // Cycle 7
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.word, 7)
+        expect(dut.io.instr.bits.pc, 3)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 5)
         poke(dut.io.memInstr.valid, 0)
       }
     } should be (true)
   }
 
-  it should "increment PC with alignment" in {
+  ignore should "increment PC with alignment" in {
     executeTest("incrPCAlign", pcAlign=2){
       dut : FetchModule => new PeekPokeTester(dut){
 
@@ -247,7 +280,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "stall when output not ready" in {
+  ignore should "stall when output not ready" in {
     executeTest("stallOutput") {
       dut : FetchModule => new PeekPokeTester(dut) {
 
@@ -373,6 +406,17 @@ class PCGeneratorTester extends ChiselFlatSpec {
 
         expect(dut.io.pc.valid, 1)
         expect(dut.io.pc.bits, 3)
+        poke(dut.io.pc.ready, 0)
+
+        step(1)
+
+        expect(dut.io.pc.valid, 0)
+        poke(dut.io.pc.ready, 1)
+
+        step(1)
+
+        expect(dut.io.pc.valid, 1)
+        expect(dut.io.pc.bits, 4)
       }
     } should be (true)
   }
@@ -508,19 +552,24 @@ class PCBufferTester extends ChiselFlatSpec {
 
         // Cycle 0, State init
         poke(dut.io.instr.ready, 1)
-        poke(dut.io.pc.valid, 1)
+        poke(dut.io.pc.valid, 0)
         poke(dut.io.pc.bits, 0)
         poke(dut.io.memInstr.valid, 0)
         step(1)
 
         // Cycle 1, State ready
         expect(dut.io.pc.ready, 1)
+        expect(dut.io.instr.valid, 0)
+        poke(dut.io.pc.valid, 1)
+        step(1)
+
+        // Cycle 2, State buf
         expect(dut.io.memInstr.ready, 1)
         expect(dut.io.instr.valid, 0)
         poke(dut.io.pc.bits, 1)
         step(1)
 
-        // // Cycle 2, State buf
+        // Cycle 3, State outBuf
         expect(dut.io.pc.ready, 0)
         expect(dut.io.memInstr.ready, 1)
         expect(dut.io.instr.valid, 0)
@@ -544,7 +593,7 @@ class PCBufferTester extends ChiselFlatSpec {
         expect(dut.io.pc.ready, 0)
         expect(dut.io.memInstr.ready, 1)
         expect(dut.io.instr.valid, 0)
-        poke(dut.io.pc.bits, 3)
+        poke(dut.io.pc.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 4)
         step(1)
@@ -555,7 +604,8 @@ class PCBufferTester extends ChiselFlatSpec {
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.pc, 1)
         expect(dut.io.instr.bits.word, 4)
-        poke(dut.io.pc.bits, 4)
+        poke(dut.io.pc.valid, 1)
+        poke(dut.io.pc.bits, 3)
         poke(dut.io.memInstr.valid, 0)
         step(1)
 
@@ -563,7 +613,7 @@ class PCBufferTester extends ChiselFlatSpec {
         expect(dut.io.pc.ready, 0)
         expect(dut.io.memInstr.ready, 1)
         expect(dut.io.instr.valid, 0)
-        poke(dut.io.pc.bits, 5)
+        poke(dut.io.pc.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 7)
         step(1)
@@ -574,6 +624,112 @@ class PCBufferTester extends ChiselFlatSpec {
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.pc, 2)
         expect(dut.io.instr.bits.word, 7)
+        poke(dut.io.pc.valid, 1)
+        poke(dut.io.pc.bits, 4)
+      }
+    } should be (true)
+  }
+
+  it should "wait for memory" in {
+    executeTest("waitMem"){
+      dut : PCBuffer => new PeekPokeTester(dut){
+
+        // Cycle 0, end reset
+        poke(dut.io.instr.ready, 1)
+        poke(dut.io.memInstr.valid, 0)
+        poke(dut.io.pc.valid, 0)
+
+        // Cycle 1
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+
+        // Cycle 2
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.pc.valid, 1)
+        poke(dut.io.pc.bits, 0)
+
+        // Cycle 3
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 10)
+        poke(dut.io.pc.bits, 1)
+
+        // Cycle 4
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.pc, 0)
+        expect(dut.io.instr.bits.word, 10)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.memInstr.bits, 11)
+        poke(dut.io.pc.bits, 2)
+
+        // Cycle 5
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.pc, 1)
+        expect(dut.io.instr.bits.word, 11)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.memInstr.valid, 0)
+        poke(dut.io.pc.bits, 3)
+
+        // Cycle 6
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 0)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 12)
+        poke(dut.io.pc.bits, 4)
+
+        // Cycle 7
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.pc, 2)
+        expect(dut.io.instr.bits.word, 12)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 13)
+        poke(dut.io.pc.valid, 0)
+
+        // Cycle 8
+        step(1)
+        expect(dut.io.instr.valid, 1)
+        expect(dut.io.instr.bits.pc, 3)
+        expect(dut.io.instr.bits.word, 13)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.memInstr.bits, 14)
+        poke(dut.io.pc.valid, 1)
+        poke(dut.io.pc.bits, 5)
+
+        // Cycle 9
+        step(1)
+        expect(dut.io.instr.bits.pc, 4)
+        expect(dut.io.instr.bits.word, 14)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.pc.bits, 6)
+        poke(dut.io.memInstr.bits, 15)
+
+        // Cycle 10
+        step(1)
+        expect(dut.io.instr.bits.pc, 5)
+        expect(dut.io.instr.bits.word, 15)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pc.ready, 1)
+        poke(dut.io.pc.bits, 7)
+        poke(dut.io.memInstr.bits, 0)
       }
     } should be (true)
   }

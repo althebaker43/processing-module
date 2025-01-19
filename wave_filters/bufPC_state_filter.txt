@@ -4,3 +4,4 @@
 011 out
 100 outBuf
 101 wait
+110 waitPC

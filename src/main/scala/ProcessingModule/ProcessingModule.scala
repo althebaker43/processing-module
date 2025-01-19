@@ -295,7 +295,7 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
     val instr = util.Decoupled(new Instruction(iWidth, pcWidth))
   })
 
-  val stateInit :: stateReady :: stateBufPC :: stateInstrOut :: stateInstrOutBufPC :: stateWait :: stateWaitPC :: Nil = util.Enum(7)
+  val stateInit :: stateReady :: stateBufPC :: stateInstrOut :: stateInstrOutBufPC :: stateWait :: stateWaitPC :: stateWaitOut :: Nil = util.Enum(8)
   val stateReg = RegInit(stateInit)
   val nextState = Wire(UInt())
   stateReg := nextState
@@ -372,11 +372,15 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
 
     is (stateWait) {
       printf("PCBuffer state = wait\n")
-      when (io.memInstr.valid & io.instr.ready) {
-        when (pcQueueIn.ready) {
-          nextState := stateInstrOutBufPC
+      when (io.memInstr.valid) {
+        when (io.instr.ready) {
+          when (pcQueueIn.ready) {
+            nextState := stateInstrOutBufPC
+          } .otherwise {
+            nextState := stateInstrOut
+          }
         } .otherwise {
-          nextState := stateInstrOut
+          nextState := stateWaitOut
         }
       }
       // when (io.pc.valid) {
@@ -390,6 +394,17 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       printf("PCBuffer state = waitPC\n")
       when (io.pc.valid) {
         nextState := stateBufPC
+      }
+    }
+
+    is (stateWaitOut) {
+      printf("PCBuffer state = waitOut\n")
+      when (io.instr.ready) {
+        when (pcQueueIn.ready) {
+          nextState := stateInstrOutBufPC
+        } .otherwise {
+          nextState := stateInstrOut
+        }
       }
     }
   }
@@ -414,8 +429,8 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
   }
   pcQueue.ready := (stateReg === stateInstrOut) | (stateReg === stateInstrOutBufPC)
 
-  io.pc.ready := (stateReg =/= stateInit) & (stateReg =/= stateWait)
-  io.memInstr.ready := stateReg =/= stateInit
+  io.pc.ready := (stateReg =/= stateInit) & (stateReg =/= stateWait) & (stateReg =/= stateWaitOut)
+  io.memInstr.ready := (stateReg =/= stateInit) & (stateReg =/= stateWaitOut)
   io.instr.valid := (stateReg === stateInstrOut) | (stateReg === stateInstrOutBufPC)
   io.instr.bits.pc := pcQueue.bits
   io.instr.bits.word := memInstrReg

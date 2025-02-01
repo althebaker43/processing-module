@@ -1,8 +1,9 @@
-000 init
-001 ready
-010 buf
-011 out
-100 outBuf
-101 wait
-110 waitPC
-111 waitOut
+0000 init
+0001 ready
+0010 buf
+0011 out
+0100 outBuf
+0101 wait
+0110 waitPC
+0111 waitOut
+1000 branch

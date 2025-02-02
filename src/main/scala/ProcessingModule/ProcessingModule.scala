@@ -307,11 +307,11 @@ class PCGenerator(pcWidth : Int, pcAlign : Int) extends Module {
     }
   }
 
-  when ((nextState === stateBranch) | (nextState === stateBranchPCOut)) {
+  when (io.branchPCIn.valid) {
     pc := io.branchPCIn.bits
   } .elsewhen (stateReg === stateInit) {
     pc := 0.S
-  } .elsewhen (stateReg === statePCOut) {
+  } .elsewhen ((stateReg === statePCOut) | (stateReg === stateBranchPCOut)) {
     pc := pc + (1.S << (pcAlign - 1))
   }
 
@@ -352,6 +352,8 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       printf("PCBuffer state = ready\n")
       when (io.branch) {
         nextState := stateBranch
+      } .elsewhen (!io.instr.ready) {
+        nextState := stateWaitOut
       } .elsewhen (io.pc.valid) {
         nextState := stateBufPC
       }
@@ -431,10 +433,14 @@ class PCBuffer(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
       when (io.branch) {
         nextState := stateBranch
       } .elsewhen (io.instr.ready) {
-        when (pcQueueIn.ready) {
-          nextState := stateInstrOutBufPC
+        when (pcQueue.valid) {
+          when (pcQueueIn.ready) {
+            nextState := stateInstrOutBufPC
+          } .otherwise {
+            nextState := stateInstrOut
+          }
         } .otherwise {
-          nextState := stateInstrOut
+          nextState := stateWaitPC
         }
       }
     }
@@ -492,7 +498,9 @@ class FetchModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
   val pcGen = Module(new PCGenerator(pcWidth, pcAlign))
   val pcBuf = Module(new PCBuffer(iWidth, pcWidth, pcAlign))
   pcGen.io.branchPCIn := io.branchPCIn
-  pcBuf.io.pc <> pcGen.io.pc
+  pcBuf.io.pc.valid := pcGen.io.pc.valid
+  pcBuf.io.pc.bits := pcGen.io.pc.bits
+  pcGen.io.pc.ready := pcBuf.io.pc.ready & io.instr.ready
   pcBuf.io.memInstr <> io.memInstr
   pcBuf.io.branch := io.branchPCIn.valid
   io.instr <> pcBuf.io.instr

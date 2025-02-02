@@ -597,8 +597,8 @@ class PCBufferTester extends ChiselFlatSpec {
         step(1)
 
         // Cycle 2, State buf
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pc.ready, 1)
+        expect(dut.io.memInstr.ready, 0)
+        expect(dut.io.pc.ready, 0)
         expect(dut.io.instr.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 10)
@@ -872,6 +872,44 @@ class PCBufferTester extends ChiselFlatSpec {
         expect(dut.io.pc.ready, 1)
         poke(dut.io.pc.bits, 7)
         poke(dut.io.memInstr.bits, 0)
+      }
+    } should be (true)
+  }
+
+  it should "wait to output instructions" in {
+    executeTest("waitOut"){
+      dut : PCBuffer => new PeekPokeTester(dut){
+
+        // Cycle 0
+        poke(dut.io.instr.ready, 1)
+        poke(dut.io.memInstr.valid, 0)
+        poke(dut.io.pc.valid, 0)
+        poke(dut.io.branch, 0)
+
+        // Cycle 1
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pc.ready, 1)
+        expect(dut.io.memInstr.ready, 1)
+        poke(dut.io.instr.ready, 0)
+
+        // Cycle 2
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pc.ready, 0)
+        expect(dut.io.memInstr.ready, 0)
+
+        // Cycle 3
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pc.ready, 0)
+        expect(dut.io.memInstr.ready, 0)
+
+        // Cycle 4
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pc.ready, 0)
+        expect(dut.io.memInstr.ready, 0)
       }
     } should be (true)
   }

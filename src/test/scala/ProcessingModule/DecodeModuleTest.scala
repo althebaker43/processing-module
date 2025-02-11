@@ -91,7 +91,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
     } should be(true)
   }
 
-  ignore should "write back" in {
+  it should "write back" in {
     executeTest("write_back") {
       dut => new PeekPokeTester(dut) {
 
@@ -114,7 +114,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
     } should be(true)
   }
 
-  ignore should "return branch PC" in {
+  it should "return branch PC" in {
     executeTest("branch") {
       dut => new PeekPokeTester(dut) {
 

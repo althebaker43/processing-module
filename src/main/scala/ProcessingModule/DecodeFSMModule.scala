@@ -87,15 +87,18 @@ class DecodeFSMModule(
   }
 
   io.instrIn.ready := (stateReg === stateReady)
-  for (idx <- 0 until numOps) {
-    io.ops(idx) := 0.U
-  }
   io.branchPC.valid := false.B
   io.branchPC.bits := 0.S
   io.instrOut := instrReg.bits
 
   val instrValids = Wire(Vec(numInstrs, Bool()))
   io.instrValids := instrValids
+
+  val ops = Wire(Vec(numOps, UInt(opWidth.W)))
+  io.ops := ops
+  for (idx <- 0 until numOps) {
+    ops(idx) := 0.U
+  }
 
   for ((instr, idx) <-  instrs.logic.zipWithIndex) {
     when ((stateReg === stateReady) & instrReg.valid) {
@@ -107,7 +110,11 @@ class DecodeFSMModule(
       for (opIdx <- 0 until instr.numOps) {
         val rfIdx = Wire(UInt(rfIdxWidth.W))
         rfIdx := instr.getRFIndex(instrReg.bits.word, opIdx)
-        io.ops(opIdx) := rf(rfIdx).word
+        ops(opIdx) := rf(rfIdx).word
+      }
+      when (instr.branch()) {
+        io.branchPC.valid := true.B
+        io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops)
       }
     }
   }

@@ -203,7 +203,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
     } should be(true)
   }
 
-  ignore should "stall on output not ready" in {
+  it should "stall on output not ready" in {
     executeTest("stallOutput"){
       dut => new PeekPokeTester(dut) {
 
@@ -219,29 +219,21 @@ class DecodeModuleTest extends ChiselFlatSpec {
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
-        expect(dut.io.ops(0), 0.U)
-        expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, 0.U)
-        expect(dut.io.instrOut.pc, 0.U)
+        expect(dut.io.instrValids(2), false.B)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
-        expect(dut.io.ops(0), 0.U)
-        expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, 0.U)
-        expect(dut.io.instrOut.pc, 0.U)
+        expect(dut.io.instrValids(2), false.B)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
-        expect(dut.io.ops(0), 0.U)
-        expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, 0.U)
-        expect(dut.io.instrOut.pc, 0.U)
+        expect(dut.io.instrValids(2), false.B)
 
         poke(dut.io.instrReady, true.B)
         step(2)
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut.word, "b000_001_01".U)
@@ -250,7 +242,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
     } should be(true)
   }
 
-  ignore should "stall on output not ready when instr arrives" in {
+  it should "stall on output not ready when instr arrives" in {
     executeTest("stallOutputInstr"){
       dut => new PeekPokeTester(dut) {
 
@@ -263,6 +255,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
         step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut.word, "b000_001_01".U)
@@ -274,26 +267,27 @@ class DecodeModuleTest extends ChiselFlatSpec {
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
-        expect(dut.io.ops(0), 0.U)
-        expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_010_01".U)
-        expect(dut.io.instrOut.pc, 1.U)
+        expect(dut.io.instrValids(2), false.B)
         expect(dut.io.instrIn.ready, false.B)
 
         poke(dut.io.instrIn.valid, false.B)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
-        expect(dut.io.ops(0), 0.U)
-        expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_010_01".U)
-        expect(dut.io.instrOut.pc, 1.U)
+        expect(dut.io.instrValids(2), false.B)
         expect(dut.io.instrIn.ready, false.B)
 
         poke(dut.io.instrReady, true.B)
         step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.instrIn.ready, false.B)
+
+        step(1)
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut.word, "b000_010_01".U)

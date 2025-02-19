@@ -142,7 +142,7 @@ class DecodeFSMModule(
     ops(idx) := 0.U
   }
 
-  hazard := false.B
+  hazard := !io.instrReady
   for ((instr, idx) <-  instrs.logic.zipWithIndex) {
     when ((stateReg === stateReady) & instrReg.valid) {
       instrValids(idx) := instr.decode(instrReg.bits.word)

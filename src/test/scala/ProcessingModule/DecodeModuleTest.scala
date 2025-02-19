@@ -140,7 +140,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
     } should be(true)
   }
 
-  ignore should "stall on hazard" in {
+  it should "stall on hazard" in {
     executeTest("stall"){
       dut => new PeekPokeTester(dut) {
 
@@ -151,6 +151,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.instrIn.bits.pc, 0.U)
 
         step(rfDepth+1) // RF init
+
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.instrValids(2), false.B)
@@ -165,28 +166,39 @@ class DecodeModuleTest extends ChiselFlatSpec {
         expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_001_01".U)
-        expect(dut.io.instrOut.pc, 0.U)
+        poke(dut.io.instrIn.valid, false.B)
+
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_001_01".U)
-        expect(dut.io.instrOut.pc, 0.U)
-
         poke(dut.io.data.bits, 1.U)
         poke(dut.io.data.valid, true.B)
         poke(dut.io.index, 1.U)
+
         step(1)
         expect(dut.io.instrValids(0), true.B)
         expect(dut.io.instrValids(1), false.B)
         expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 1.U)
         expect(dut.io.ops(1), 0.U)
-        expect(dut.io.instrOut.word, "b000_001_01".U)
-        expect(dut.io.instrOut.pc, 0.U)
+        poke(dut.io.data.valid, false.B)
+
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+
+        step(1)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
       }
     } should be(true)
   }

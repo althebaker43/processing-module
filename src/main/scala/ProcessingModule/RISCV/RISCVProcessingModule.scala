@@ -59,7 +59,7 @@ class BEQ extends RISCVInstructionLogic("beq") {
   }
   override def branch() : Bool = true.B
   override def relativeBranch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) === ops(1), getBImm(instr).asSInt, 0.S)
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) === ops(1), getBImm(instr).asSInt, 4.S)
 }
 
 class BNE extends RISCVInstructionLogic("bne") {
@@ -74,7 +74,7 @@ class BNE extends RISCVInstructionLogic("bne") {
   }
   override def branch() : Bool = true.B
   override def relativeBranch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) =/= ops(1), getBImm(instr).asSInt, 0.S)
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) =/= ops(1), getBImm(instr).asSInt, 4.S)
 }
 
 class BGE extends RISCVInstructionLogic("bge") {
@@ -89,7 +89,7 @@ class BGE extends RISCVInstructionLogic("bge") {
   }
   override def branch() : Bool = true.B
   override def relativeBranch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0).asSInt >= ops(1).asSInt, getBImm(instr).asSInt, 0.S)
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0).asSInt >= ops(1).asSInt, getBImm(instr).asSInt, 4.S)
 }
 
 class BGEU extends RISCVInstructionLogic("bgeu") {
@@ -104,7 +104,7 @@ class BGEU extends RISCVInstructionLogic("bgeu") {
   }
   override def branch() : Bool = true.B
   override def relativeBranch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) >= ops(1), getBImm(instr).asSInt, 0.S)
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) >= ops(1), getBImm(instr).asSInt, 4.S)
 }
 
 class BLT extends RISCVInstructionLogic("blt") {
@@ -119,7 +119,7 @@ class BLT extends RISCVInstructionLogic("blt") {
   }
   override def branch() : Bool = true.B
   override def relativeBranch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0).asSInt < ops(1).asSInt, getBImm(instr).asSInt, 0.S)
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0).asSInt < ops(1).asSInt, getBImm(instr).asSInt, 4.S)
 }
 
 class BLTU extends RISCVInstructionLogic("bltu") {
@@ -134,7 +134,7 @@ class BLTU extends RISCVInstructionLogic("bltu") {
   }
   override def branch() : Bool = true.B
   override def relativeBranch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) < ops(1), getBImm(instr).asSInt, 0.S)
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = Mux(ops(0) < ops(1), getBImm(instr).asSInt, 4.S)
 }
 
 class CSRRW extends RISCVInstructionLogic("csrrw") {

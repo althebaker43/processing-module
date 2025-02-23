@@ -94,7 +94,7 @@ abstract class ProcessingModule(
   fetch.io.pcOut <> io.instr.pc
   fetch.io.memInstr <> io.instr.in
 
-  val decode = Module(new DecodeModule(iWidth, pcWidth, instrs, numOps, opWidth, dWidth, rfDepth))
+  val decode = Module(new DecodeFSMModule(iWidth, pcWidth, instrs, numOps, opWidth, dWidth, rfDepth))
   decode.io.instrIn <> fetch.io.instr
   fetch.io.branchPCIn <> decode.io.branchPC
 

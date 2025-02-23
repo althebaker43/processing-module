@@ -1,0 +1,4 @@
+00 init
+01 ready
+10 wait
+11 flush

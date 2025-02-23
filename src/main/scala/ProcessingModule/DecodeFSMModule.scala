@@ -59,14 +59,14 @@ class DecodeFSMModule(
 
     is (stateReady) {
       printf("Decode state = ready\n")
-      when (hazard) {
+      when (hazard | !io.instrReady) {
         nextState := stateWait
       }
     }
 
     is (stateWait) {
       printf("Decode state = wait\n")
-      when (!hazard) {
+      when (!hazard & io.instrReady) {
         when (hazardInstrReg.valid) {
           nextState := stateFlush
         } .otherwise {
@@ -114,13 +114,15 @@ class DecodeFSMModule(
   }
 
   val instrReg = Reg(util.Valid(new Instruction(iWidth, pcWidth)))
-  when ((stateReg === stateReady) & io.instrIn.valid) {
-    instrReg.bits := io.instrIn.bits
-    instrReg.valid := io.instrIn.valid
-  } .elsewhen (stateReg === stateFlush) {
-    instrReg := hazardInstrReg
-  } .elsewhen ((stateReg =/= stateWait) & !hazard) {
-    instrReg.valid := false.B
+  when (!hazard) {
+    when ((stateReg === stateReady) & io.instrIn.valid) {
+      instrReg.bits := io.instrIn.bits
+      instrReg.valid := io.instrIn.valid
+    } .elsewhen (stateReg === stateFlush) {
+      instrReg := hazardInstrReg
+    } .elsewhen (stateReg =/= stateWait) {
+      instrReg.valid := false.B
+    }
   }
 
   io.instrIn.ready := (stateReg === stateReady)
@@ -142,9 +144,9 @@ class DecodeFSMModule(
     ops(idx) := 0.U
   }
 
-  hazard := !io.instrReady
+  hazard := false.B
   for ((instr, idx) <-  instrs.logic.zipWithIndex) {
-    when ((stateReg === stateReady) & instrReg.valid) {
+    when (((stateReg === stateReady) | (stateReg === stateFlush)) & instrReg.valid) {
       instrValids(idx) := instr.decode(instrReg.bits.word)
     } .otherwise {
       instrValids(idx) := false.B
@@ -166,7 +168,7 @@ class DecodeFSMModule(
         }
       }
       when (instr.branch()) {
-        io.branchPC.valid := true.B
+        io.branchPC.valid := !hazard
         when (instr.relativeBranch()) {
           io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops) + instrReg.bits.pc.asSInt()
         } .otherwise {

@@ -187,4 +187,17 @@ class DecodeFSMModule(
       }
     }
   }
+
+  val isInstrValid = Wire(Bool())
+  isInstrValid := false.B
+  when (((stateReg === stateReady) | (stateReg === stateFlush)) & instrReg.valid) {
+    for ((instr, idx) <-  instrs.logic.zipWithIndex) {
+      when (instrValids(idx)) {
+        isInstrValid := true.B
+      }
+    }
+    when (!isInstrValid) {
+      printf("Invalid instruction %x at address %x\n", instrReg.bits.word, instrReg.bits.pc)
+    }
+  }
 }

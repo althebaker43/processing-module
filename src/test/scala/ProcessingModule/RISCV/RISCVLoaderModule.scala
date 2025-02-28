@@ -113,11 +113,13 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
     printf("Sim: PC: %x, Instr: %x\n", prevPC, instr.bits)
   }
 
+  when (memDataInAddr.valid & memDataIn.valid) {
+    printf("Sim: Addr: %x, Data: %x\n", memDataInAddr.bits, memDataIn.bits)
+  }
+
   when (memDataInAddr.valid &
     (memDataInAddr.bits === 0.U) &
     memDataIn.valid) {
-
-    printf("Sim: Addr: %x, Data: %x\n", memDataInAddr.bits, memDataIn.bits)
 
     when (memDataIn.bits === 0.U) {
       io.status.bits := false.B

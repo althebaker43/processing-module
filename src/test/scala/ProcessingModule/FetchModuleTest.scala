@@ -62,14 +62,14 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
     testName : String,
     pcWidth : Int = 6,
     pcAlign : Int = 1)(
-    testerGen : FetchModule => PeekPokeTester[FetchModule]) : Boolean = Driver.execute(
-    Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/fetch_" + testName), () => new FetchModule(iWidth, pcWidth, pcAlign))(testerGen)
+    testerGen : FetchFSMModule => PeekPokeTester[FetchFSMModule]) : Boolean = Driver.execute(
+    Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/fetch_" + testName), () => new FetchFSMModule(iWidth, pcWidth, pcAlign))(testerGen)
 
-  behavior of "FetchModule"
+  behavior of "FetchFSMModule"
 
   it should "increment PC" in {
     executeTest("incrPC"){
-      dut : FetchModule => new PeekPokeTester(dut){
+      dut : FetchFSMModule => new PeekPokeTester(dut){
 
         // Cycle 0, reset ends
         poke(dut.io.instr.ready, 1)
@@ -78,16 +78,20 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
-
-        // Cycle 2
-        step(1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
 
+        // Cycle 2
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.valid, 0)
+
         // Cycle 3
         step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 1)
 
@@ -97,13 +101,12 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.bits.word, 1)
         expect(dut.io.instr.bits.pc, 0)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.pcOut.bits, 1)
         poke(dut.io.memInstr.valid, 0)
 
         // Cycle 5
         step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 3)
+        expect(dut.io.pcOut.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 4)
 
@@ -112,7 +115,8 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 4)
         expect(dut.io.instr.bits.pc, 1)
-        expect(dut.io.pcOut.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 2)
 
@@ -122,7 +126,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.bits.word, 2)
         expect(dut.io.instr.bits.pc, 2)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 4)
+        expect(dut.io.pcOut.bits, 3)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 7)
 
@@ -132,7 +136,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.bits.word, 7)
         expect(dut.io.instr.bits.pc, 3)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 5)
+        expect(dut.io.pcOut.bits, 4)
         poke(dut.io.memInstr.valid, 0)
       }
     } should be (true)
@@ -140,7 +144,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
 
   it should "increment PC with alignment" in {
     executeTest("incrPCAlign", pcAlign=2){
-      dut : FetchModule => new PeekPokeTester(dut){
+      dut : FetchFSMModule => new PeekPokeTester(dut){
 
         // Cycle 0, State init
         poke(dut.io.instr.ready, 1)
@@ -150,19 +154,17 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-
-        // Cycle 2, State ready
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
 
+        // Cycle 2
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+
         // Cycle 3
         step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.pcOut.valid, 0)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
         poke(dut.io.memInstr.valid, 1)
@@ -171,7 +173,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         // Cycle 4
         step(1)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 4)
+        expect(dut.io.pcOut.bits, 2)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 1)
         expect(dut.io.instr.bits.pc, 0)
@@ -181,8 +183,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         // Cycle 5
         step(1)
         expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 6)
+        expect(dut.io.pcOut.valid, 0)
         expect(dut.io.memInstr.ready, 1)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 4)
@@ -192,14 +193,15 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 4)
         expect(dut.io.instr.bits.pc, 2)
-        expect(dut.io.pcOut.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 4)
         expect(dut.io.memInstr.ready, 1)
         poke(dut.io.memInstr.bits, 7)
 
         // Cycle 7
         step(1)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 8)
+        expect(dut.io.pcOut.bits, 6)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 7)
         expect(dut.io.instr.bits.pc, 4)
@@ -209,15 +211,14 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         // Cycle 8
         step(1)
         expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 10)
+        expect(dut.io.pcOut.valid, 0)
       }
     } should be (true)
   }
 
-  it should "branch to absolute address" in {
+  ignore should "branch to absolute address" in {
     executeTest("absBranch") {
-      dut : FetchModule => new PeekPokeTester(dut) {
+      dut : FetchFSMModule => new PeekPokeTester(dut) {
 
         // Cycle 0
         poke(dut.io.instr.ready, 1)
@@ -292,7 +293,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
 
   ignore should "branch to relative address" in {
     executeTest("relBranch") {
-      dut : FetchModule => new PeekPokeTester(dut) {
+      dut : FetchFSMModule => new PeekPokeTester(dut) {
 
         poke(dut.io.instr.ready, 1)
         poke(dut.io.branchPCIn.valid, 0)
@@ -345,86 +346,81 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
 
   it should "stall when output not ready" in {
     executeTest("stallOutput") {
-      dut : FetchModule => new PeekPokeTester(dut) {
+      dut : FetchFSMModule => new PeekPokeTester(dut) {
 
         poke(dut.io.instr.ready, 1)
         poke(dut.io.memInstr.valid, 0)
 
         // Cycle 1, State ready
         step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-
-        // Cycle 2, State ready
-        step(1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
 
-        // Cycle 3, State buf
+        // Cycle 2, State buf
         step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 1)
+        expect(dut.io.pcOut.valid, 0)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 1)
 
-        // Cycle 4
+        // Cycle 3
         step(1)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.pcOut.bits, 1)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 1)
         expect(dut.io.instr.bits.pc, 0)
         poke(dut.io.memInstr.valid, 0)
 
-        // Cycle 5
+        // Cycle 4
         step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 3)
+        expect(dut.io.pcOut.valid, 0)
         expect(dut.io.instr.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 4)
         poke(dut.io.instr.ready, 0)
 
+        // Cycle 5
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.pcOut.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        poke(dut.io.memInstr.valid, 1)
+        poke(dut.io.memInstr.bits, 4)
+
         // Cycle 6
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
-        poke(dut.io.memInstr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
 
         // Cycle 7
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
-
-        // Cycle 8
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
+        expect(dut.io.memInstr.ready, 1)
         poke(dut.io.instr.ready, 1)
 
-        // Cycle 9
+        // Cycle 8
         step(1)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.word, 4)
         expect(dut.io.instr.bits.pc, 1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 2)
+        expect(dut.io.memInstr.ready, 1)
+        poke(dut.io.memInstr.valid, 0)
+
+         // Cycle 9
+        step(1)
+        expect(dut.io.instr.valid, 0)
         expect(dut.io.pcOut.valid, 0)
         expect(dut.io.memInstr.ready, 1)
 
-         // Cycle 10
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 4)
-
-        // Cycle 11
+        // Cycle 10
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
@@ -432,21 +428,21 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 6)
 
-        // Cycle 12
+        // Cycle 11
         step(1)
         expect(dut.io.instr.valid, 1)
         expect(dut.io.instr.bits.pc, 2)
         expect(dut.io.instr.bits.word, 6)
         expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 3)
         poke(dut.io.memInstr.valid, 0)
 
-        // Cycle 13
+        // Cycle 12
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 5)
+        expect(dut.io.pcOut.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 8)
       }

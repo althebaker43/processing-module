@@ -12,7 +12,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     val instr = util.Decoupled(new Instruction(iWidth, pcWidth))
   })
 
-  val stateInit :: stateInitMem :: stateReady :: stateWaitOut :: stateWaitMem :: stateWaitOutMem :: Nil = util.Enum(6)
+  val stateInit :: stateInitMem :: stateReady :: stateWaitOut :: stateWaitMem :: stateWaitOutMem :: stateBranch :: stateBranchMem :: Nil = util.Enum(8)
   val stateReg = RegInit(stateInit)
   val nextState = Wire(UInt())
   stateReg := nextState
@@ -22,14 +22,34 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
 
     is (stateInit) {
       printf("Fetch state = init\n")
-      when (io.instr.ready) {
+      when (io.branchPCIn.valid) {
+        nextState := stateBranch
+      } .elsewhen (io.instr.ready) {
         nextState := stateInitMem
+      }
+    }
+
+    is (stateBranch) {
+      printf("Fetch state = branch\n")
+      nextState := stateInit
+    }
+
+    is (stateBranchMem) {
+      printf("Fetch state = branchMem\n")
+      when (io.memInstr.valid) {
+        nextState := stateInit
       }
     }
 
     is (stateInitMem) {
       printf("Fetch state = initMem\n")
-      when (io.memInstr.valid & io.instr.ready) {
+      when (io.branchPCIn.valid) {
+        when (io.memInstr.valid) {
+          nextState := stateBranch
+        } .otherwise {
+          nextState := stateBranchMem
+        }
+      } .elsewhen (io.memInstr.valid & io.instr.ready) {
         nextState := stateReady
       } .elsewhen (!io.memInstr.valid & !io.instr.ready) {
         nextState := stateWaitOutMem
@@ -42,7 +62,13 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
 
     is (stateReady) {
       printf("Fetch state = ready\n")
-      when (!io.memInstr.valid & !io.instr.ready) {
+      when (io.branchPCIn.valid) {
+        when (io.memInstr.valid) {
+          nextState := stateBranch
+        } .otherwise {
+          nextState := stateBranchMem
+        }
+      } .elsewhen (!io.memInstr.valid & !io.instr.ready) {
         nextState := stateWaitOutMem
       } .elsewhen (!io.memInstr.valid) {
         nextState := stateWaitMem
@@ -53,14 +79,22 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
 
     is (stateWaitOut) {
       printf("Fetch state = waitOut\n")
-      when (io.instr.ready) {
+      when (io.branchPCIn.valid) {
+        nextState := stateBranch
+      } .elsewhen (io.instr.ready) {
         nextState := stateReady
       }
     }
 
     is (stateWaitMem) {
       printf("Fetch state = waitMem\n")
-      when (io.memInstr.valid) {
+      when (io.branchPCIn.valid) {
+        when (io.memInstr.valid) {
+          nextState := stateBranch
+        } .otherwise {
+          nextState := stateBranchMem
+        }
+      } .elsewhen (io.memInstr.valid) {
         when (!io.instr.ready) {
           nextState := stateWaitOut
         } .otherwise {
@@ -73,7 +107,13 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
 
     is (stateWaitOutMem) {
       printf("Fetch state = waitOutMem\n")
-      when (io.instr.ready & io.memInstr.valid) {
+      when (io.branchPCIn.valid) {
+        when (io.memInstr.valid) {
+          nextState := stateBranch
+        } .otherwise {
+          nextState := stateBranchMem
+        }
+      } .elsewhen (io.instr.ready & io.memInstr.valid) {
         nextState := stateReady
       } .elsewhen (io.instr.ready) {
         nextState := stateWaitMem
@@ -83,11 +123,18 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
   }
 
+  val branchPCReg = RegInit(0.U(pcWidth.W))
+  when (io.branchPCIn.valid) {
+    branchPCReg := io.branchPCIn.bits.asUInt()
+  }
+
   val pcReg = RegInit(0.U(pcWidth.W))
   val instrReg = Reg(new Instruction(iWidth, pcWidth))
   when ((stateReg === stateInitMem) | (stateReg === stateReady)) {
     pcReg := pcReg + (1.U << (pcAlign - 1))
     instrReg.pc := pcReg
+  } .elsewhen ((stateReg === stateBranch) | (stateReg === stateBranchMem)) {
+    pcReg := branchPCReg
   }
 
   io.pcOut.valid := (stateReg === stateInitMem) | (stateReg === stateReady)

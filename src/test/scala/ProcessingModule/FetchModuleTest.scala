@@ -216,7 +216,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  ignore should "branch to absolute address" in {
+  it should "branch to absolute address" in {
     executeTest("absBranch") {
       dut : FetchFSMModule => new PeekPokeTester(dut) {
 
@@ -229,12 +229,6 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-
-        // Cycle 2
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
         poke(dut.io.memInstr.valid, 1)
@@ -242,19 +236,26 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         poke(dut.io.branchPCIn.valid, 1)
         poke(dut.io.branchPCIn.bits, 8)
 
-        // Cycle 3
+        // Cycle 2
         step(1)
         expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
+        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 0)
         poke(dut.io.memInstr.valid, 0)
         poke(dut.io.branchPCIn.valid, 0)
 
+        // Cycle 3
+        step(1)
+        expect(dut.io.instr.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.valid, 0)
+
         // Cycle 4
         step(1)
         expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
-        expect(dut.io.pcOut.valid, 0)
+        expect(dut.io.memInstr.ready, 1)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 8)
 
         // Cycle 5
         step(1)
@@ -266,15 +267,13 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 8)
+        expect(dut.io.pcOut.valid, 0)
 
         // Cycle 7
         step(1)
         expect(dut.io.instr.valid, 0)
         expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 9)
+        expect(dut.io.pcOut.valid, 0)
         poke(dut.io.memInstr.valid, 1)
         poke(dut.io.memInstr.bits, 5)
 
@@ -285,7 +284,7 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
         expect(dut.io.instr.bits.pc, 8)
         expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 10)
+        expect(dut.io.pcOut.bits, 9)
         poke(dut.io.memInstr.valid, 0)
       }
     } should be (true)

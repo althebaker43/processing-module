@@ -307,4 +307,7 @@ class RISCVProcessingModule (rfDepth : Int)
       rfDepth = rfDepth) {
 
   override def initInstrs = new RISCVInstructions
+
+  override def initPreTrapVector = 0.U(32.W)
 }
+

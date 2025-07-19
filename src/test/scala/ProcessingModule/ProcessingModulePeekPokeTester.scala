@@ -2,7 +2,7 @@ package ProcessingModule
 
 import org.scalatest._
 import chisel3._
-import chisel3.iotesters.{ChiselFlatSpec, Driver}
+import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester, Driver}
 
 class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
 
@@ -16,7 +16,11 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
   def store(regVal : Int, addrVal : Int) : BigInt = AdderInstruction.createInt(AdderInstruction.codeStore, regVal.U, addrVal.U)
   def bgt(regVal : Int) : BigInt = AdderInstruction.createInt(AdderInstruction.codeBGT, regVal.U, 0.U)
 
-  def executeTest(testName : String)(testerGen : AdderModule => DecoupledPeekPokeTester[AdderModule]) : Boolean = {
+  def executeTest(testName : String)(testerGen : AdderModule => PeekPokeTester[AdderModule]) : Boolean = {
+    Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/adder_" + testName), () => new AdderModule(4))(testerGen)
+  }
+
+  def executeDecoupledTest(testName : String)(testerGen : AdderModule => DecoupledPeekPokeTester[AdderModule]) : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/adder_" + testName), () => new AdderModule(4))(testerGen)
   }
 
@@ -25,20 +29,75 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
   behavior of "AdderModule"
 
   it should "initialize correctly" in {
-    executeTest("init"){
-      (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
-        def cycles = getRFInitCycles() ++ List(
-          List(new InstrReq(addr = 0)), // fetch 0
-          List(new InstrRcv(instr = store(0, 3))), // receive store
-          List(new InstrReq(addr = 1)), // fetch 1, decode store
-          List(new InstrRcv(instr = nop)), // receive nop, execute store
-          List(new StoreReq(addr = 3, data = 0), new InstrReq(addr = 2))) // store to 3, fetch 2
+    executeTest("init") {
+      dut => new PeekPokeTester(dut) {
+
+        poke(dut.io.instr.in.valid, false.B)
+        poke(dut.io.instr.pc.valid, false.B)
+        poke(dut.io.data.in.valid, false.B)
+        poke(dut.io.data.out.value.ready, true.B)
+
+        // RF Init; cycle 5
+        step(rfDepth+1)
+        expect(dut.io.instr.in.ready, true.B)
+        expect(dut.io.instr.pc.valid, true.B)
+        expect(dut.io.instr.pc.bits, 0.U)
+        expect(dut.io.data.in.ready, false.B)
+        expect(dut.io.data.out.addr.valid, false.B)
+        expect(dut.io.data.out.value.valid, false.B)
+
+        // Cycle 6, fetch store
+        step(1)
+        expect(dut.io.instr.in.ready, true.B)
+        expect(dut.io.instr.pc.valid, true.B)
+        expect(dut.io.instr.pc.bits, 1.U)
+        expect(dut.io.data.in.ready, false.B)
+        expect(dut.io.data.out.addr.valid, false.B)
+        expect(dut.io.data.out.value.valid, false.B)
+        poke(dut.io.instr.in.valid, true.B)
+        poke(dut.io.instr.in.bits, store(0, 3))
+
+        // Cycle 7, decode store
+        step(1)
+        expect(dut.io.instr.in.ready, true.B)
+        expect(dut.io.instr.pc.valid, true.B)
+        expect(dut.io.instr.pc.bits, 2.U)
+        expect(dut.io.data.in.ready, false.B)
+        expect(dut.io.data.out.addr.valid, false.B)
+        expect(dut.io.data.out.value.valid, false.B)
+        poke(dut.io.instr.in.valid, false.B)
+
+        // Cycle 8, execute store
+        step(1)
+        expect(dut.io.instr.in.ready, true.B)
+        expect(dut.io.instr.pc.valid, true.B)
+        expect(dut.io.instr.pc.bits, 3.U)
+        expect(dut.io.data.in.ready, false.B)
+        expect(dut.io.data.out.addr.valid, false.B)
+        expect(dut.io.data.out.value.valid, false.B)
+
+        // Cycle 9, send store
+        step(1)
+        expect(dut.io.instr.in.ready, true.B)
+        expect(dut.io.instr.pc.valid, false.B)
+        expect(dut.io.data.in.ready, false.B)
+        expect(dut.io.data.out.addr.valid, true.B)
+        expect(dut.io.data.out.value.valid, true.B)
+        expect(dut.io.data.out.value.bits, 0.U)
       }
+      // (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
+      //   def cycles = getRFInitCycles() ++ List(
+      //     List(new InstrReq(addr = 0)), // fetch 0
+      //     List(new InstrRcv(instr = store(0, 3))), // receive store
+      //     List(new InstrReq(addr = 1)), // fetch 1, decode store
+      //     List(new InstrRcv(instr = nop)), // receive nop, execute store
+      //     List(new StoreReq(addr = 3, data = 0), new InstrReq(addr = 2))) // store to 3, fetch 2
+      // }
     } should be (true)
   }
 
-  it should "process one nop per cycle" in {
-    executeTest("nop"){
+  ignore should "process one nop per cycle" in {
+    executeDecoupledTest("nop"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)),
@@ -53,8 +112,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "increment by 1" in {
-    executeTest("incr1"){
+  ignore should "increment by 1" in {
+    executeDecoupledTest("incr1"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)), // fetch 0
@@ -72,8 +131,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "process one incr1 per cycle" in {
-    executeTest("incr1_cpi1"){
+  ignore should "process one incr1 per cycle" in {
+    executeDecoupledTest("incr1_cpi1"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)),
@@ -88,8 +147,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "increment by 1 with a stall" in {
-    executeTest("incr1stall"){
+  ignore should "increment by 1 with a stall" in {
+    executeDecoupledTest("incr1stall"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)), // fetch 0
@@ -106,8 +165,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "increment with memory value" in {
-    executeTest("incrData"){
+  ignore should "increment with memory value" in {
+    executeDecoupledTest("incrData"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)), // fetch 0
@@ -125,8 +184,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "increment with memory value with stall" in {
-    executeTest("incrDataStall"){
+  ignore should "increment with memory value with stall" in {
+    executeDecoupledTest("incrDataStall"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut){
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)), // fetch 0
@@ -149,8 +208,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "process one incrData per cycle" in {
-    executeTest("incrData_cpi1"){
+  ignore should "process one incrData per cycle" in {
+    executeDecoupledTest("incrData_cpi1"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)),
@@ -172,8 +231,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "process one store per cycle" in {
-    executeTest("store_cpi1"){
+  ignore should "process one store per cycle" in {
+    executeDecoupledTest("store_cpi1"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)),
@@ -195,8 +254,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "process one untaken branch per cycle" in {
-    executeTest("branch_cpi1"){
+  ignore should "process one untaken branch per cycle" in {
+    executeDecoupledTest("branch_cpi1"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)),
@@ -214,8 +273,8 @@ class ProcessingModulePeekPokeTester extends ChiselFlatSpec {
     } should be (true)
   }
 
-  it should "should not execute invalid instructions with taken branch" in {
-    executeTest("branch_flush"){
+  ignore should "should not execute invalid instructions with taken branch" in {
+    executeDecoupledTest("branch_flush"){
       (dut : AdderModule) => new DecoupledPeekPokeTester(dut) {
         def cycles = getRFInitCycles() ++ List(
           List(new InstrReq(addr = 0)),

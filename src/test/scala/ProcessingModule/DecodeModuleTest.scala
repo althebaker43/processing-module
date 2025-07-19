@@ -52,7 +52,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
 
   def executeTest(testName : String)(testerGen : DecodeFSMModule => PeekPokeTester[DecodeFSMModule]) : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/decode_" + testName),
-      () => new DecodeFSMModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=rfDepth))(testerGen)
+      () => new DecodeFSMModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=rfDepth, preTrapVector=0.U(6.W)))(testerGen)
   }
 
   behavior of "DecodeModule"
@@ -64,6 +64,9 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.instrReady, true.B)
         poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
+        poke(dut.io.data.preTrap, false.B)
+        poke(dut.io.exData.valid, false.B)
+        poke(dut.io.exData.preTrap, false.B)
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
 
@@ -77,9 +80,9 @@ class DecodeModuleTest extends ChiselFlatSpec {
 
         poke(dut.io.instrIn.bits.word, "b011_001_10".U)
         poke(dut.io.instrIn.bits.pc, 1.U)
-        poke(dut.io.data.bits, 1.U)
+        poke(dut.io.data.word, 1.U)
         poke(dut.io.data.valid, true.B)
-        poke(dut.io.index, 1.U)
+        poke(dut.io.data.index, 1.U)
         step(1)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), true.B)
@@ -100,8 +103,10 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
         poke(dut.io.data.valid, true.B)
-        poke(dut.io.data.bits, 4)
-        poke(dut.io.index, 1)
+        poke(dut.io.data.word, 4)
+        poke(dut.io.data.index, 1)
+        poke(dut.io.exData.valid, false.B)
+        poke(dut.io.exData.preTrap, false.B)
 
         step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), true.B)
@@ -123,8 +128,9 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.instrIn.bits.word, "b000_010_11".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
         poke(dut.io.data.valid, true.B)
-        poke(dut.io.data.bits, 6)
-        poke(dut.io.index, 2)
+        poke(dut.io.data.word, 6)
+        poke(dut.io.data.index, 2)
+        poke(dut.io.exData.valid, false.B)
 
         step(rfDepth+1) // RF init
         expect(dut.io.instrValids(0), false.B)
@@ -147,6 +153,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.instrReady, true.B)
         poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
+        poke(dut.io.exData.valid, false.B)
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
 
@@ -176,9 +183,9 @@ class DecodeModuleTest extends ChiselFlatSpec {
         expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 0.U)
         expect(dut.io.ops(1), 0.U)
-        poke(dut.io.data.bits, 1.U)
+        poke(dut.io.data.word, 1.U)
         poke(dut.io.data.valid, true.B)
-        poke(dut.io.index, 1.U)
+        poke(dut.io.data.index, 1.U)
         poke(dut.io.instrIn.valid, false.B)
 
         step(1)
@@ -219,6 +226,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
 
         poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
+        poke(dut.io.exData.valid, false.B)
         poke(dut.io.instrIn.bits.word, "b000_001_01".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
 
@@ -256,6 +264,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.instrReady, true.B)
         poke(dut.io.instrIn.valid, true.B)
         poke(dut.io.data.valid, false.B)
+        poke(dut.io.exData.valid, false.B)
 
         step(rfDepth) // RF init
         poke(dut.io.instrIn.bits.word, "b000_010_01".U)

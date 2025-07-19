@@ -3,6 +3,14 @@ package ProcessingModule
 import chisel3._
 import chisel3.util.{switch, is}
 
+class WriteRFData(dataWidth : Int, idxWidth : Int) extends Bundle {
+  val word = UInt(dataWidth.W)
+  val index = UInt(idxWidth.W)
+  val valid = Bool()
+  val preTrap = Bool()
+  override def cloneType = (new WriteRFData(dataWidth, idxWidth)).asInstanceOf[this.type]
+}
+
 class DecodeFSMModule(
   iWidth : Int,
   pcWidth : Int,
@@ -10,7 +18,8 @@ class DecodeFSMModule(
   numOps : Int,
   opWidth : Int,
   rfWidth : Int,
-  rfDepth : Int
+  rfDepth : Int,
+  preTrapVector : UInt
 ) extends Module {
 
   val numInstrs = instrs.logic.size
@@ -18,10 +27,8 @@ class DecodeFSMModule(
 
   val io = IO(new Bundle {
     val instrIn = Flipped(util.Decoupled(new Instruction(iWidth, pcWidth)))
-    val data = Flipped(util.Valid(UInt(rfWidth.W)))
-    val index = Input(UInt(rfIdxWidth.W))
-    val exData = Flipped(util.Valid(UInt(rfWidth.W)))
-    val exIndex = Input(UInt(rfIdxWidth.W))
+    val data = Input(new WriteRFData(rfWidth, rfIdxWidth))
+    val exData = Input(new WriteRFData(rfWidth, rfIdxWidth))
     val instrValids = Output(Vec(numInstrs, Bool()))
     val ops = Output(Vec(numOps, UInt(opWidth.W)))
     val branchPC = util.Valid(SInt(pcWidth.W))
@@ -83,28 +90,40 @@ class DecodeFSMModule(
 
   val rf = Mem(rfDepth, new RFWord(rfWidth))
 
+  // TODO: add parameter for preTrapRF depth
+  val preTrapRF = Mem(4, new RFWord(rfWidth))
+
+  val preTrapEnabledReg = RegInit(false.B)
+
   val rfDataIn = Wire(new RFWord(rfWidth))
   rfDataIn.word := 0.U
   rfDataIn.isWritten := true.B
   when (io.data.valid) {
-    rfDataIn.word := io.data.bits
+    rfDataIn.word := io.data.word
     rfDataIn.isWritten := true.B
-    rf.write(io.index, rfDataIn)
+    when (io.data.preTrap) {
+      preTrapRF.write(io.data.index, rfDataIn)
+    } .otherwise {
+      rf.write(io.data.index, rfDataIn)
+    }
   }
 
   val rfExDataIn = Wire(new RFWord(rfWidth))
   rfExDataIn.word := 0.U
   rfExDataIn.isWritten := true.B
   when (io.exData.valid) {
-    rfExDataIn.word := io.exData.bits
+    rfExDataIn.word := io.exData.word
     rfExDataIn.isWritten := true.B
-    rf.write(io.exIndex, rfExDataIn)
+    when (io.exData.preTrap) {
+      preTrapRF.write(io.exData.index, rfExDataIn)
+    } .otherwise {
+      rf.write(io.exData.index, rfExDataIn)
+    }
   }
 
   val rfInstrDataIn = Wire(new RFWord(rfWidth))
   rfInstrDataIn.word := 0.U
   rfInstrDataIn.isWritten := true.B
-
 
   when (stateReg === stateInit) {
     rf.write(initCountReg, rfDataIn)
@@ -155,10 +174,10 @@ class DecodeFSMModule(
       for (opIdx <- 0 until instr.numOps) {
         val rfIdx = Wire(UInt(rfIdxWidth.W))
         rfIdx := instr.getRFIndex(instrReg.bits.word, opIdx)
-        when (io.data.valid & (rfIdx === io.index)) {
-          ops(opIdx) := io.data.bits
-        } .elsewhen (io.exData.valid & (rfIdx === io.exIndex)) {
-          ops(opIdx) := io.exData.bits
+        when (io.data.valid & (rfIdx === io.data.index)) {
+          ops(opIdx) := io.data.word
+        } .elsewhen (io.exData.valid & (rfIdx === io.exData.index)) {
+          ops(opIdx) := io.exData.word
         } .otherwise {
           when (rf(rfIdx).isWritten) {
             ops(opIdx) := rf(rfIdx).word
@@ -167,7 +186,10 @@ class DecodeFSMModule(
           }
         }
       }
-      when (instr.branch()) {
+      when (instr.raiseException(instrReg.bits.word, ops)) {
+        io.branchPC.valid := !hazard
+        io.branchPC.bits := preTrapVector.asSInt()
+      } .elsewhen (instr.branch()) {
         io.branchPC.valid := !hazard
         when (instr.relativeBranch()) {
           io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops) + instrReg.bits.pc.asSInt()
@@ -176,13 +198,17 @@ class DecodeFSMModule(
         }
       }
       when (instr.writeRF(instrReg.bits.word)) {
-        when (io.data.valid & (instr.getWriteIndex(instrReg.bits.word, ops) === io.index)) {
+        when (io.data.valid & (instr.getWriteIndex(instrReg.bits.word, ops) === io.data.index)) {
           rfDataIn.isWritten := false.B
-        } .elsewhen (io.exData.valid & (instr.getWriteIndex(instrReg.bits.word, ops) === io.exIndex)) {
+        } .elsewhen (io.exData.valid & (instr.getWriteIndex(instrReg.bits.word, ops) === io.exData.index)) {
           rfExDataIn.isWritten := false.B
         } .otherwise {
           rfInstrDataIn.isWritten := false.B
-          rf.write(instr.getWriteIndex(instrReg.bits.word, ops), rfInstrDataIn)
+          when (preTrapEnabledReg) {
+            preTrapRF.write(instr.getWriteIndex(instrReg.bits.word, ops), rfInstrDataIn)
+          } .otherwise {
+            rf.write(instr.getWriteIndex(instrReg.bits.word, ops), rfInstrDataIn)
+          }
         }
       }
     }
@@ -191,7 +217,7 @@ class DecodeFSMModule(
   val isInstrValid = Wire(Bool())
   isInstrValid := false.B
   when (((stateReg === stateReady) | (stateReg === stateFlush)) & instrReg.valid) {
-    for ((instr, idx) <-  instrs.logic.zipWithIndex) {
+    for ((instr, idx) <- instrs.logic.zipWithIndex) {
       when (instrValids(idx)) {
         isInstrValid := true.B
       }

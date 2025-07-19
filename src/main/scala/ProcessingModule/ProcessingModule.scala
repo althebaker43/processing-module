@@ -60,6 +60,9 @@ abstract class InstructionLogic(val name : String) {
     * stage using data just loaded from data memory
     */
   def getMemWriteData(resultData : UInt, memData : UInt) : UInt = resultData
+
+  /** Indicates if this instruction raises an exception */
+  def raiseException(instr : UInt, ops : Vec[UInt]) : Bool = false.B
 }
 
 abstract class ProcessingModule(
@@ -88,13 +91,17 @@ abstract class ProcessingModule(
 
   def initInstrs : Instructions
 
+  def initPreTrapVector : UInt
+
   val instrs = initInstrs
 
-  val fetch = Module(new FetchModule(iWidth, pcWidth, pcAlign))
+  val preTrapVector = initPreTrapVector
+
+  val fetch = Module(new FetchFSMModule(iWidth, pcWidth, pcAlign))
   fetch.io.pcOut <> io.instr.pc
   fetch.io.memInstr <> io.instr.in
 
-  val decode = Module(new DecodeFSMModule(iWidth, pcWidth, instrs, numOps, opWidth, dWidth, rfDepth))
+  val decode = Module(new DecodeFSMModule(iWidth, pcWidth, instrs, numOps, opWidth, dWidth, rfDepth, preTrapVector))
   decode.io.instrIn <> fetch.io.instr
   fetch.io.branchPCIn <> decode.io.branchPC
 
@@ -103,9 +110,10 @@ abstract class ProcessingModule(
   execute.io.instrValids <> decode.io.instrValids
   decode.io.instrReady := execute.io.instrReady
   execute.io.ops <> decode.io.ops
-  decode.io.exData.bits := execute.io.results.data
+  decode.io.exData.word := execute.io.results.data
   decode.io.exData.valid := execute.io.results.writeRF & ~execute.io.results.readMem & ~execute.io.results.writeMem
-  decode.io.exIndex := execute.io.results.rfIndex
+  decode.io.exData.index := execute.io.results.rfIndex
+  decode.io.exData.preTrap := false.B
 
   val memory = Module(new MemoryModule(dWidth, dAddrWidth, rfDepth, instrs))
   memory.io.results <> execute.io.results
@@ -113,8 +121,10 @@ abstract class ProcessingModule(
   memory.io.memAddr <> io.data.out.addr
   memory.io.memDataOut <> io.data.out.value
   memory.io.memDataIn <> io.data.in
-  decode.io.data <> memory.io.rfDataOut
-  decode.io.index <> memory.io.rfIndexOut
+  decode.io.data.valid := memory.io.rfDataOut.valid
+  decode.io.data.word := memory.io.rfDataOut.bits
+  decode.io.data.index := memory.io.rfIndexOut
+  decode.io.data.preTrap := false.B
 }
 
 object AdderInstruction {
@@ -160,6 +170,8 @@ class AdderModule(dWidth : Int)
   def getInstrCode(instr : UInt) : UInt = instr(2,0)
   def getInstrReg(instr : UInt) : UInt = instr(4, 3)
   def getInstrAddr(instr : UInt) : UInt = instr(8, 5)
+
+  def initPreTrapVector: UInt = 0.U(dWidth.W)
 
   def initInstrs = new Instructions {
 

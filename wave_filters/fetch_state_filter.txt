@@ -1,0 +1,12 @@
+0000 init
+0001 initMem
+0010 bufPC
+0011 flushPC
+0100 ready
+0101 waitOut
+0110 flushInstr
+0111 waitMem
+1000 waitOutMem
+1001 branch
+1010 branchMem
+1011 branchFlush

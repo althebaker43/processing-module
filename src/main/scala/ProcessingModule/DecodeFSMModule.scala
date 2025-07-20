@@ -19,7 +19,8 @@ class DecodeFSMModule(
   opWidth : Int,
   rfWidth : Int,
   rfDepth : Int,
-  preTrapVector : UInt
+  preTrapVector : UInt,
+  val dbgMsg : Boolean = false
 ) extends Module {
 
   val numInstrs = instrs.logic.size
@@ -53,26 +54,30 @@ class DecodeFSMModule(
     hazardInstrReg.valid := false.B
   }
 
+  def printDbg(fmt : String, data : Bits*) : Unit = {
+    if (dbgMsg) printf(Printable.pack(fmt, data:_*))
+  }
+
   nextState := stateReg
   switch (stateReg) {
 
     is (stateInit) {
-      printf("Decode state = init\n")
-      printf("Clearing RF at %d\n", initCountReg)
+      printDbg("Decode state = init\n")
+      printDbg("Clearing RF at %d\n", initCountReg)
       when ((initCountReg === rfDepth.U) | initCountReg.andR()) {
         nextState := stateReady
       }
     }
 
     is (stateReady) {
-      printf("Decode state = ready\n")
+      printDbg("Decode state = ready\n")
       when (hazard | !io.instrReady) {
         nextState := stateWait
       }
     }
 
     is (stateWait) {
-      printf("Decode state = wait\n")
+      printDbg("Decode state = wait\n")
       when (!hazard & io.instrReady) {
         when (hazardInstrReg.valid) {
           nextState := stateFlush
@@ -83,7 +88,7 @@ class DecodeFSMModule(
     }
 
     is (stateFlush) {
-      printf("Decode state = flush\n")
+      printDbg("Decode state = flush\n")
       nextState := stateReady
     }
   }
@@ -223,7 +228,7 @@ class DecodeFSMModule(
       }
     }
     when (!isInstrValid) {
-      printf("Invalid instruction %x at address %x\n", instrReg.bits.word, instrReg.bits.pc)
+      printDbg("Invalid instruction %x at address %x\n", instrReg.bits.word, instrReg.bits.pc)
     }
   }
 }

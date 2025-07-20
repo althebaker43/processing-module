@@ -3,7 +3,7 @@ package ProcessingModule
 import chisel3._
 import chisel3.util.{switch, is}
 
-class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module {
+class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int, val dbgMsg : Boolean = true) extends Module {
 
   val io = IO(new Bundle {
     val branchPCIn = Flipped(util.Valid(SInt(pcWidth.W)))
@@ -19,11 +19,17 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
 
   val pcBufReg = Reg(util.Valid(UInt(pcWidth.W)))
 
+  def printDbg(state : String) = {
+    if (dbgMsg) {
+      printf("Fetch state = " + "%12s".format(state) + ", instr = { valid=%b, pc= %x, word=%x }\n", io.instr.valid, io.instr.bits.pc, io.instr.bits.word)
+    }
+  }
+
   nextState := stateReg
   switch (stateReg) {
 
     is (stateInit) {
-      printf("Fetch state = init\n")
+      printDbg("init")
       when (io.branchPCIn.valid) {
         nextState := stateBranch
       } .elsewhen (io.instr.ready) {
@@ -32,19 +38,19 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateBranch) {
-      printf("Fetch state = branch\n")
+      printDbg("branch")
       nextState := stateBranchFlush
     }
 
     is (stateBranchMem) {
-      printf("Fetch state = branchMem\n")
+      printDbg("branchMem")
       when (io.memInstr.valid) {
         nextState := stateBranchFlush
       }
     }
 
     is (stateBranchFlush) {
-      printf("Fetch state = branchFlush\n")
+      printDbg("branchFlush")
       when (io.branchPCIn.valid) {
         nextState := stateBranch
       } .elsewhen (io.instr.ready) {
@@ -53,7 +59,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateInitMem) {
-      printf("Fetch state = initMem\n")
+      printDbg("initMem")
       when (io.branchPCIn.valid) {
         when (io.memInstr.valid) {
           nextState := stateBranch
@@ -70,7 +76,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateBufPC) {
-      printf("Fetch state = bufPC\n")
+      printDbg("bufPC")
       when (io.branchPCIn.valid) {
         when (io.memInstr.valid) {
           nextState := stateBranch
@@ -89,7 +95,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateFlushPC) {
-      printf("Fetch state = flushPC\n")
+      printDbg("flushPC")
       when (io.branchPCIn.valid) {
         when (io.memInstr.valid) {
           nextState := stateBranch
@@ -108,7 +114,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateReady) {
-      printf("Fetch state = ready\n")
+      printDbg("ready")
       when (io.branchPCIn.valid) {
         when (io.memInstr.valid) {
           nextState := stateBranch
@@ -125,7 +131,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateWaitOut) {
-      printf("Fetch state = waitOut\n")
+      printDbg("waitOut")
       when (io.branchPCIn.valid) {
         nextState := stateBranch
       } .elsewhen (io.instr.ready) {
@@ -138,7 +144,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateFlushInstr) {
-      printf("Fetch state = flushInstr\n")
+      printDbg("flushInstr")
       when (io.branchPCIn.valid) {
         when (io.memInstr.valid) {
           nextState := stateBranch
@@ -155,7 +161,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateWaitMem) {
-      printf("Fetch state = waitMem\n")
+      printDbg("waitMem")
       when (io.branchPCIn.valid) {
         when (io.memInstr.valid) {
           nextState := stateBranch
@@ -174,7 +180,7 @@ class FetchFSMModule(iWidth : Int, pcWidth : Int, pcAlign : Int) extends Module 
     }
 
     is (stateWaitOutMem) {
-      printf("Fetch state = waitOutMem\n")
+      printDbg("waitOutMem")
       when (io.branchPCIn.valid) {
         when (io.memInstr.valid) {
           nextState := stateBranch

@@ -109,13 +109,13 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
   }
 
   val prevPC = RegNext(pc.bits)
-  when (instr.valid) {
-    printf("Sim: PC: %x, Instr: %x\n", prevPC, instr.bits)
-  }
+  // when (instr.valid) {
+  //   printf("Sim: PC: %x, Instr: %x\n", prevPC, instr.bits)
+  // }
 
-  when (memDataInAddr.valid & memDataIn.valid) {
-    printf("Sim: Addr: %x, Data: %x\n", memDataInAddr.bits, memDataIn.bits)
-  }
+  // when (memDataInAddr.valid & memDataIn.valid) {
+  //   printf("Sim: Addr: %x, Data: %x\n", memDataInAddr.bits, memDataIn.bits)
+  // }
 
   when (memDataInAddr.valid &
     (memDataInAddr.bits === 0.U) &

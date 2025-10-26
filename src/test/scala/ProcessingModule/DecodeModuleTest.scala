@@ -50,9 +50,9 @@ class DecodeModuleTest extends ChiselFlatSpec {
 
   val rfDepth : Int = 8
 
-  def executeTest(testName : String)(testerGen : DecodeFSMModule => PeekPokeTester[DecodeFSMModule]) : Boolean = {
+  def executeTest(testName : String, dbgMsg : Boolean = false)(testerGen : DecodeFSMModule => PeekPokeTester[DecodeFSMModule]) : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/decode_" + testName),
-      () => new DecodeFSMModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=rfDepth, preTrapVector=0.U(6.W)))(testerGen)
+      () => new DecodeFSMModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=rfDepth, preTrapVector=0.U(6.W), dbgMsg=dbgMsg))(testerGen)
   }
 
   behavior of "DecodeModule"
@@ -120,7 +120,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
   }
 
   it should "return branch PC" in {
-    executeTest("branch") {
+    executeTest("branch", dbgMsg=true) {
       dut => new PeekPokeTester(dut) {
 
         poke(dut.io.instrReady, true.B)
@@ -128,20 +128,68 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.instrIn.bits.word, "b000_010_11".U)
         poke(dut.io.instrIn.bits.pc, 0.U)
         poke(dut.io.data.valid, true.B)
-        poke(dut.io.data.word, 6)
-        poke(dut.io.data.index, 2)
+        poke(dut.io.data.word, 6.U)
+        poke(dut.io.data.index, 2.U)
         poke(dut.io.exData.valid, false.B)
 
         step(rfDepth+1) // RF init
+        poke(dut.io.instrIn.bits.word, "b000_000_01".U)
+        poke(dut.io.instrIn.bits.pc, 1.U)
+        poke(dut.io.data.valid, false.B)
         expect(dut.io.instrValids(0), false.B)
         expect(dut.io.instrValids(1), false.B)
-        expect(dut.io.instrValids(2), true.B)
+        expect(dut.io.instrValids(2), false.B)
         expect(dut.io.ops(0), 6.U)
         expect(dut.io.ops(1), 0.U)
         expect(dut.io.instrOut.word, "b000_010_11".U)
         expect(dut.io.instrOut.pc, 0.U)
         expect(dut.io.branchPC.valid, true.B)
         expect(dut.io.branchPC.bits, 6.S)
+
+        step(1)
+        poke(dut.io.instrIn.bits.word, "b000_001_01".U)
+        poke(dut.io.instrIn.bits.pc, 2.U)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+
+        step(1)
+        poke(dut.io.instrIn.bits.word, "b000_011_01".U)
+        poke(dut.io.instrIn.bits.pc, 3.U)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+
+        step(1)
+        poke(dut.io.instrIn.bits.word, "b000_100_01".U)
+        poke(dut.io.instrIn.bits.pc, 6.U)
+        expect(dut.io.instrValids(0), false.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+
+        step(1)
+        poke(dut.io.instrIn.bits.word, "b000_101_01".U)
+        poke(dut.io.instrIn.bits.pc, 7.U)
+        expect(dut.io.instrValids(0), true.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut.word, "b000_100_01".U)
+        expect(dut.io.instrOut.pc, 6.U)
+        expect(dut.io.branchPC.valid, false.B)
+
+        step(1)
+        poke(dut.io.instrIn.bits.word, "b000_110_01".U)
+        poke(dut.io.instrIn.bits.pc, 8.U)
+        expect(dut.io.instrValids(0), true.B)
+        expect(dut.io.instrValids(1), false.B)
+        expect(dut.io.instrValids(2), false.B)
+        expect(dut.io.ops(0), 0.U)
+        expect(dut.io.ops(1), 0.U)
+        expect(dut.io.instrOut.word, "b000_101_01".U)
+        expect(dut.io.instrOut.pc, 7.U)
+        expect(dut.io.branchPC.valid, false.B)
       }
     } should be(true)
   }

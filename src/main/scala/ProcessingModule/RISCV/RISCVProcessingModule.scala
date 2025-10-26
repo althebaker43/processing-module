@@ -243,7 +243,7 @@ class JAL extends RISCVInstructionLogic("jal") {
   override def decode(instr : UInt) : Bool = isJAL(instr)
   override def branch() : Bool = true.B
   override def relativeBranch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = util.Cat(getJImm(instr), 0.U(1.W)).asSInt
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = getJImm(instr).asSInt
   override def writeRF(instr : UInt) : Bool = getJDest(instr) =/= 0.U
   override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = pc + 4.U
 }

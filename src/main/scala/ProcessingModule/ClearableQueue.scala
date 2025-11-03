@@ -3,21 +3,21 @@ package ProcessingModule
 import chisel3._
 import chisel3.util.{QueueIO, log2Ceil}
 
-class ClearableQueueIO(val dWidth : Int, val depth : Int) extends QueueIO(UInt(dWidth.W), depth) {
+class ClearableQueueIO[T <: Data](gen : T, val depth : Int) extends QueueIO(gen, depth) {
   val clear = Input(Bool())
 }
 
-class ClearableQueue(width : Int, depth : Int, val dbgMsg : Boolean = true) extends Module {
+class ClearableQueue[T <: Data](gen : T, depth : Int, val dbgMsg : Boolean = true) extends Module {
 
-  val io = IO(new ClearableQueueIO(width, depth))
+  val io = IO(new ClearableQueueIO(gen, depth))
 
-  val enqReg = Reg(UInt(width.W))
+  val enqReg = Reg(gen)
   enqReg := io.enq.bits
 
   val idxWidth = log2Ceil(depth)
   val countWidth = log2Ceil(depth+1)
 
-  val regs = RegInit(VecInit(Seq.fill(depth)(0.U(width.W))))
+  val regs = Reg(Vec(depth, gen))
 
   val head = RegInit(0.U(idxWidth.W))
   val nextHead = Wire(UInt(idxWidth.W))
@@ -64,12 +64,11 @@ class ClearableQueue(width : Int, depth : Int, val dbgMsg : Boolean = true) exte
     }
   }
 
-  io.deq.bits := 0.U(width.W)
+  io.deq.bits := regs(tail)
   when (io.clear) {
     tail := 0.U
     tailPhase := false.B
   } .elsewhen (validDeqReg && !io.clear) {
-    io.deq.bits := regs(tail)
     tail := nextTail
     when (nextTail === 0.U) {
       tailPhase := ~tailPhase

@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester, Driver}
 import chisel3.testers.TesterDriver
 
-class ClearableQueueTester(dut : ClearableQueue) extends PeekPokeTester[ClearableQueue](dut) {
+class ClearableQueueTester(dut : ClearableQueue[UInt]) extends PeekPokeTester[ClearableQueue[UInt]](dut) {
 
   implicit def intToSignalValue(intVal : Int) : SignalValue = new SignalValue(isValid=true, value=intVal)
 
@@ -34,13 +34,13 @@ class ClearableQueueTests extends ChiselFlatSpec {
 
   val width = 4
 
-  def executeTest(testName : String, depth : Int)(testerGen : ClearableQueue => PeekPokeTester[ClearableQueue]) : Boolean = Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/clearQueue_" + testName), () => new ClearableQueue(width, depth))(testerGen)
+  def executeTest(testName : String, depth : Int)(testerGen : ClearableQueue[UInt] => PeekPokeTester[ClearableQueue[UInt]]) : Boolean = Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/clearQueue_" + testName), () => new ClearableQueue(UInt(width.W), depth))(testerGen)
 
   behavior of "ClearableQueue"
 
   it should "enqueue and dequeue" in {
     executeTest("basic", depth=4){
-      dut : ClearableQueue => new ClearableQueueTester(dut){
+      dut : ClearableQueue[UInt] => new ClearableQueueTester(dut){
 
         poke(dut.io.enq.valid, 0)
         poke(dut.io.enq.bits, 0)
@@ -61,7 +61,7 @@ class ClearableQueueTests extends ChiselFlatSpec {
 
   it should "circle around" in {
     executeTest("circle", depth=4){
-      dut : ClearableQueue => new ClearableQueueTester(dut){
+      dut : ClearableQueue[UInt] => new ClearableQueueTester(dut){
 
         poke(dut.io.enq.valid, 0)
         poke(dut.io.enq.bits, 0)
@@ -81,7 +81,7 @@ class ClearableQueueTests extends ChiselFlatSpec {
 
   it should "operate while full" in {
     executeTest("fullOp", depth=4){
-      dut : ClearableQueue => new ClearableQueueTester(dut){
+      dut : ClearableQueue[UInt] => new ClearableQueueTester(dut){
 
         poke(dut.io.enq.valid, 0)
         poke(dut.io.enq.bits, 0)
@@ -101,7 +101,7 @@ class ClearableQueueTests extends ChiselFlatSpec {
 
   it should "fill up" in {
     executeTest("fill", depth=4){
-      dut : ClearableQueue => new ClearableQueueTester(dut){
+      dut : ClearableQueue[UInt] => new ClearableQueueTester(dut){
 
         poke(dut.io.enq.valid, 0)
         poke(dut.io.enq.bits, 0)
@@ -121,7 +121,7 @@ class ClearableQueueTests extends ChiselFlatSpec {
 
   it should "empty out" in {
     executeTest("empty", depth=4){
-      dut : ClearableQueue => new ClearableQueueTester(dut){
+      dut : ClearableQueue[UInt] => new ClearableQueueTester(dut){
 
         poke(dut.io.enq.valid, 0)
         poke(dut.io.enq.bits, 0)
@@ -141,7 +141,7 @@ class ClearableQueueTests extends ChiselFlatSpec {
 
   it should "clear" in {
     executeTest("empty", depth=4){
-      dut : ClearableQueue => new ClearableQueueTester(dut){
+      dut : ClearableQueue[UInt] => new ClearableQueueTester(dut){
 
         poke(dut.io.enq.valid, 0)
         poke(dut.io.enq.bits, 0)

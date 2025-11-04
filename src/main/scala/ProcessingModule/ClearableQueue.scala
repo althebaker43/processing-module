@@ -37,21 +37,16 @@ class ClearableQueue[T <: Data](gen : T, depth : Int, val dbgMsg : Boolean = tru
   }
   val tailPhase = RegInit(false.B)
 
-  io.enq.ready := (head =/= tail) || !(headPhase ^ tailPhase) || io.deq.valid
+  io.enq.ready := (head =/= tail) || !(headPhase ^ tailPhase) || io.deq.ready
   val validEnq = Wire(Bool())
   validEnq := false.B
   when (io.enq.valid && io.enq.ready && !io.clear) {
     validEnq := true.B
   }
 
-  val validDeqReg = RegInit(false.B)
+  io.deq.valid := (tail =/= head) || (headPhase ^ tailPhase)
   val validDeq = Wire(Bool())
-  validDeq := false.B
-  validDeqReg := validDeq
-  io.deq.valid := validDeqReg
-  when (io.deq.ready && (((nextTail =/= head) && (tail =/= head)) || (headPhase ^ tailPhase)) && !io.clear) {
-    validDeq := true.B
-  }
+  validDeq := io.deq.ready && io.deq.valid && !io.clear
 
   when (io.clear) {
     head := 0.U
@@ -68,7 +63,7 @@ class ClearableQueue[T <: Data](gen : T, depth : Int, val dbgMsg : Boolean = tru
   when (io.clear) {
     tail := 0.U
     tailPhase := false.B
-  } .elsewhen (validDeqReg && !io.clear) {
+  } .elsewhen (validDeq && !io.clear) {
     tail := nextTail
     when (nextTail === 0.U) {
       tailPhase := ~tailPhase

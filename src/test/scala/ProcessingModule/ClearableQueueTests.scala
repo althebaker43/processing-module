@@ -48,11 +48,11 @@ class ClearableQueueTests extends ChiselFlatSpec {
         poke(dut.io.clear, 0)
 
         stepUpdate(enqV=1, enq=1, deqR=u, clear=u, enqR=1, deqV=0, deq=x) // Step 1
-        stepUpdate(     1,     2,      u,       u,      1,      0,     x) //      2
-        stepUpdate(     0,     3,      u,       u,      1,      0,     x) //      3
-        stepUpdate(     0,     3,      1,       u,      1,      0,     x) //      4
-        stepUpdate(     0,     3,      u,       u,      1,      1,     1) //      5
-        stepUpdate(     0,     3,      u,       u,      1,      1,     2) //      6
+        stepUpdate(     1,     2,      u,       u,      1,      1,     1) //      2
+        stepUpdate(     0,     3,      u,       u,      1,      1,     1) //      3
+        stepUpdate(     0,     3,      1,       u,      1,      1,     1) //      4
+        stepUpdate(     0,     3,      u,       u,      1,      1,     2) //      5
+        stepUpdate(     0,     3,      u,       u,      1,      0,     x) //      6
         stepUpdate(     0,     3,      u,       u,      1,      0,     x) //      7
         stepUpdate(     0,     3,      u,       u,      1,      0,     x) //      8
       }
@@ -69,12 +69,12 @@ class ClearableQueueTests extends ChiselFlatSpec {
         poke(dut.io.clear, 0)
 
         stepUpdate(enqV=1, enq=1, deqR=u, clear=u, enqR=1, deqV=0, deq=x) // Step 1
-        stepUpdate(     1,     2,      u,       u,      1,      0,     x) //      2
-        stepUpdate(     1,     3,      1,       u,      1,      0,     x) //      3
-        stepUpdate(     1,     4,      u,       u,      1,      1,     1) //      4
-        stepUpdate(     1,     5,      u,       u,      1,      1,     2) //      5
-        stepUpdate(     1,     6,      u,       u,      1,      1,     3) //      6
-        stepUpdate(     1,     7,      u,       u,      1,      1,     4) //      7
+        stepUpdate(     1,     2,      u,       u,      1,      1,     1) //      2
+        stepUpdate(     1,     3,      1,       u,      1,      1,     1) //      3
+        stepUpdate(     1,     4,      u,       u,      1,      1,     2) //      4
+        stepUpdate(     1,     5,      u,       u,      1,      1,     3) //      5
+        stepUpdate(     1,     6,      u,       u,      1,      1,     4) //      6
+        stepUpdate(     1,     7,      u,       u,      1,      1,     5) //      7
       }
     } should be (true)
   }
@@ -89,12 +89,12 @@ class ClearableQueueTests extends ChiselFlatSpec {
         poke(dut.io.clear, 0)
 
         stepUpdate(enqV=1, enq=1, deqR=u, clear=u, enqR=1, deqV=0, deq=x) // Step 1
-        stepUpdate(     1,     2,      u,       u,      1,      0,     x) //      2
-        stepUpdate(     1,     3,      u,       u,      1,      0,     x) //      3
-        stepUpdate(     1,     4,      1,       u,      1,      0,     x) //      4
-        stepUpdate(     1,     5,      u,       u,      1,      1,     1) //      5
-        stepUpdate(     1,     6,      u,       u,      1,      1,     2) //      6
-        stepUpdate(     1,     7,      u,       u,      1,      1,     3) //      7
+        stepUpdate(     1,     2,      u,       u,      1,      1,     1) //      2
+        stepUpdate(     1,     3,      u,       u,      1,      1,     1) //      3
+        stepUpdate(     1,     4,      1,       u,      1,      1,     1) //      4
+        stepUpdate(     1,     5,      u,       u,      1,      1,     2) //      5
+        stepUpdate(     1,     6,      u,       u,      1,      1,     3) //      6
+        stepUpdate(     1,     7,      u,       u,      1,      1,     4) //      7
       }
     } should be (true)
   }
@@ -109,12 +109,12 @@ class ClearableQueueTests extends ChiselFlatSpec {
         poke(dut.io.clear, 0)
 
         stepUpdate(enqV=1, enq=1, deqR=u, clear=u, enqR=1, deqV=0, deq=x) // Step 1
-        stepUpdate(     1,     2,      u,       u,      1,      0,     x) //      2
-        stepUpdate(     1,     3,      u,       u,      1,      0,     x) //      3
-        stepUpdate(     1,     4,      u,       u,      1,      0,     x) //      4
-        stepUpdate(     1,     5,      u,       u,      0,      0,     x) //      5
-        stepUpdate(     1,     6,      u,       u,      0,      0,     x) //      6
-        stepUpdate(     1,     7,      u,       u,      0,      0,     x) //      7
+        stepUpdate(     1,     2,      u,       u,      1,      1,     1) //      2
+        stepUpdate(     1,     3,      u,       u,      1,      1,     1) //      3
+        stepUpdate(     1,     4,      u,       u,      1,      1,     1) //      4
+        stepUpdate(     1,     5,      u,       u,      0,      1,     1) //      5
+        stepUpdate(     1,     6,      u,       u,      0,      1,     1) //      6
+        stepUpdate(     1,     7,      u,       u,      0,      1,     1) //      7
       }
     } should be (true)
   }
@@ -129,10 +129,10 @@ class ClearableQueueTests extends ChiselFlatSpec {
         poke(dut.io.clear, 0)
 
         stepUpdate(enqV=1, enq=1, deqR=u, clear=u, enqR=1, deqV=0, deq=x) // Step 1
-        stepUpdate(     1,     2,      u,       u,      1,      0,     x) //      2
-        stepUpdate(     0,     3,      1,       u,      1,      0,     x) //      3
-        stepUpdate(     u,     u,      u,       u,      1,      1,     1) //      4
-        stepUpdate(     u,     u,      u,       u,      1,      1,     2) //      5
+        stepUpdate(     1,     2,      u,       u,      1,      1,     1) //      2
+        stepUpdate(     0,     3,      1,       u,      1,      1,     1) //      3
+        stepUpdate(     u,     u,      u,       u,      1,      1,     2) //      4
+        stepUpdate(     u,     u,      u,       u,      1,      0,     x) //      5
         stepUpdate(     u,     u,      u,       u,      1,      0,     x) //      6
         stepUpdate(     u,     u,      u,       u,      1,      0,     x) //      7
       }
@@ -149,8 +149,8 @@ class ClearableQueueTests extends ChiselFlatSpec {
         poke(dut.io.clear, 0)
 
         stepUpdate(enqV=1, enq=1, deqR=u, clear=u, enqR=1, deqV=0, deq=x) // Step 1
-        stepUpdate(     1,     2,      u,       u,      1,      0,     x) //      2
-        stepUpdate(     0,     3,      1,       1,      1,      0,     x) //      3
+        stepUpdate(     1,     2,      u,       u,      1,      1,     1) //      2
+        stepUpdate(     0,     3,      1,       1,      1,      1,     1) //      3
         stepUpdate(     u,     u,      u,       0,      1,      0,     x) //      4
         stepUpdate(     u,     u,      u,       u,      1,      0,     x) //      5
         stepUpdate(     u,     u,      u,       u,      1,      0,     x) //      6

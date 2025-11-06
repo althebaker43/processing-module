@@ -17,15 +17,18 @@ class FetchPipelineModule(iWidth : Int, pcWidth : Int, pcAlign : Int, val dbgMsg
 
   val outQueue = Module(new ClearableQueue(new Instruction(iWidth, pcWidth), depth=2))
 
+  val pcRegValid = Wire(Bool())
+  pcRegValid := !io.branchPCIn.valid & pcQueue.io.enq.ready & outQueue.io.enq.ready
+
   when (io.branchPCIn.valid) {
     pcReg := io.branchPCIn.bits.asUInt()
-  } .elsewhen (pcQueue.io.enq.ready) {
+  } .elsewhen (pcRegValid) {
     pcReg := pcReg + (1.U << (pcAlign - 1))
   }
 
   pcQueue.io.clear := io.branchPCIn.valid
   pcQueue.io.enq.bits := pcReg
-  pcQueue.io.enq.valid := !io.branchPCIn.valid
+  pcQueue.io.enq.valid := pcRegValid
   pcQueue.io.deq.ready := io.memInstr.valid & outQueue.io.enq.ready
 
   outQueue.io.clear := io.branchPCIn.valid
@@ -35,9 +38,9 @@ class FetchPipelineModule(iWidth : Int, pcWidth : Int, pcAlign : Int, val dbgMsg
   outQueue.io.deq.ready := io.instr.ready
 
   io.pcOut.bits := pcReg
-  io.pcOut.valid := pcQueue.io.enq.ready && !io.branchPCIn.valid
+  io.pcOut.valid := pcRegValid
 
-  io.memInstr.ready := !io.branchPCIn.valid
+  io.memInstr.ready := !io.branchPCIn.valid & outQueue.io.enq.ready
 
   io.instr.valid := outQueue.io.deq.valid
   io.instr.bits := outQueue.io.deq.bits

@@ -79,10 +79,4 @@ class ClearableQueue[T <: Data](gen : T, depth : Int, val dbgMsg : Boolean = tru
   } .elsewhen (!validEnq && io.deq.valid) {
     count := count - 1.U
   }
-
-  when (io.clear) {
-    for (i <- 0 until depth) {
-      regs(i) := 0.U
-    }
-  }
 }

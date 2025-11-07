@@ -54,6 +54,42 @@ class FetchModuleTest extends ChiselFlatSpec {
   // }
 }
 
+class SignalValue(val isValid : Boolean, val value : Int = 0)
+
+class FetchTester(dut : FetchPipelineModule) extends PeekPokeTester[FetchPipelineModule](dut) {
+
+  implicit def intToSignalValue(intVal : Int) : SignalValue = new SignalValue(isValid=true, value=intVal)
+
+  val u = new SignalValue(isValid=false)
+  val x = new SignalValue(isValid=false)
+
+  def stepUpdate(instrR : SignalValue,
+    memInstrV : SignalValue,
+    memInstr : SignalValue,
+    branchPCV : SignalValue,
+    branchPC : SignalValue,
+    pcOutV : SignalValue,
+    pcOut : SignalValue,
+    memInstrR : SignalValue,
+    instrV : SignalValue,
+    instrPC : SignalValue,
+    instrWord : SignalValue
+  ) = {
+    step(1)
+    if (instrR.isValid) poke(dut.io.instr.ready, instrR.value)
+    if (memInstrV.isValid) poke(dut.io.memInstr.valid, memInstrV.value)
+    if (memInstr.isValid) poke(dut.io.memInstr.bits, memInstr.value)
+    if (branchPCV.isValid) poke(dut.io.branchPCIn.valid, branchPCV.value)
+    if (branchPC.isValid) poke(dut.io.branchPCIn.bits, branchPC.value)
+    if (pcOutV.isValid) expect(dut.io.pcOut.valid, pcOutV.value)
+    if (pcOut.isValid) expect(dut.io.pcOut.bits, pcOut.value)
+    if (memInstrR.isValid) expect(dut.io.memInstr.ready, memInstrR.value)
+    if (instrV.isValid) expect(dut.io.instr.valid, instrV.value)
+    if (instrPC.isValid) expect(dut.io.instr.bits.pc, instrPC.value)
+    if (instrWord.isValid) expect(dut.io.instr.bits.word, instrWord.value)
+  }
+}
+
 class FetchModulePeekPokeTester extends ChiselFlatSpec {
 
   val iWidth = 5
@@ -62,302 +98,100 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
     testName : String,
     pcWidth : Int = 6,
     pcAlign : Int = 1)(
-    testerGen : FetchFSMModule => PeekPokeTester[FetchFSMModule]) : Boolean = Driver.execute(
-    Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/fetch_" + testName), () => new FetchFSMModule(iWidth, pcWidth, pcAlign))(testerGen)
+    testerGen : FetchPipelineModule => PeekPokeTester[FetchPipelineModule]) : Boolean = Driver.execute(
+    Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/fetch_" + testName), () => new FetchPipelineModule(iWidth, pcWidth, pcAlign))(testerGen)
 
-  behavior of "FetchFSMModule"
+  behavior of "FetchPipelineModule"
 
   it should "increment PC" in {
     executeTest("incrPC"){
-      dut : FetchFSMModule => new PeekPokeTester(dut){
+      dut : FetchPipelineModule => new FetchTester(dut){
 
         // Cycle 0, reset ends
         poke(dut.io.instr.ready, 1)
         poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 1
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
 
-        // Cycle 2
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 1)
-
-        // Cycle 3
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 1)
-
-        // Cycle 4
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 1)
-        expect(dut.io.instr.bits.pc, 0)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 5
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 4)
-
-        // Cycle 6
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 4)
-        expect(dut.io.instr.bits.pc, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 3)
-        poke(dut.io.memInstr.bits, 2)
-
-        // Cycle 7
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 2)
-        expect(dut.io.instr.bits.pc, 2)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 4)
-        poke(dut.io.memInstr.bits, 7)
-
-        // Cycle 8
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 7)
-        expect(dut.io.instr.bits.pc, 3)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 5)
-        poke(dut.io.memInstr.valid, 0)
+        stepUpdate(instrR=u, memInstrV=u, memInstr=u, branchPCV=u, branchPC=u, pcOutV=1, pcOut=1, memInstrR=1, instrV=0, instrPC=x, instrWord=x) // Cycle 1
+        stepUpdate(       u,           u,          u,           u,          u,        0,       x,           1,        0,         x,           x) // Cycle 2
+        stepUpdate(       u,           1,          1,           u,          u,        1,       2,           1,        0,         x,           x) // Cycle 3
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           1,        1,         0,           1) // Cycle 4
+        stepUpdate(       u,           1,          4,           u,          u,        1,       3,           1,        0,         x,           x) // Cycle 5
+        stepUpdate(       u,           u,          2,           u,          u,        1,       4,           1,        1,         1,           4) // Cycle 6
+        stepUpdate(       u,           u,          7,           u,          u,        1,       5,           1,        1,         2,           2) // Cycle 7
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           1,        1,         3,           7) // Cycle 8
       }
     } should be (true)
   }
 
   it should "increment PC with alignment" in {
     executeTest("incrPCAlign", pcAlign=2){
-      dut : FetchFSMModule => new PeekPokeTester(dut){
+      dut : FetchPipelineModule => new FetchTester(dut){
 
         // Cycle 0, State init
         poke(dut.io.instr.ready, 1)
         poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 1, State ready
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
 
-        // Cycle 2
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
-
-        // Cycle 3
-        step(1)
-        expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 1)
-
-        // Cycle 4
-        step(1)
-        expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 1)
-        expect(dut.io.instr.bits.pc, 0)
-        expect(dut.io.memInstr.ready, 1)
-        poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 5
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 4)
-        expect(dut.io.memInstr.ready, 1)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 4)
-
-        // Cycle 6
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 4)
-        expect(dut.io.instr.bits.pc, 2)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 6)
-        expect(dut.io.memInstr.ready, 1)
-        poke(dut.io.memInstr.bits, 7)
-
-        // Cycle 7
-        step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 8)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 7)
-        expect(dut.io.instr.bits.pc, 4)
-        expect(dut.io.memInstr.ready, 1)
-        poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 8
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 10)
+        stepUpdate(instrR=u, memInstrV=u, memInstr=u, branchPCV=u, branchPC=u, pcOutV=1, pcOut=2, memInstrR=1, instrV=0, instrPC=x, instrWord=x) // Cycle 1
+        stepUpdate(       u,           u,          u,           u,          u,        0,       x,           1,        0,         x,           x) // Cycle 2
+        stepUpdate(       u,           1,          1,           u,          u,        1,       4,           1,        0,         x,           x) // Cycle 3
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           1,        1,         0,           1) // Cycle 4
+        stepUpdate(       u,           1,          4,           u,          u,        1,       6,           1,        0,         x,           x) // Cycle 5
+        stepUpdate(       u,           u,          7,           u,          u,        1,       8,           1,        1,         2,           4) // Cycle 6
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           1,        1,         4,           7) // Cycle 7
       }
     } should be (true)
   }
 
   it should "handle a single cycle of delay" in {
     executeTest("cycleDelay"){
-      dut : FetchFSMModule => new PeekPokeTester(dut){
+      dut : FetchPipelineModule => new FetchTester(dut){
 
         // Cycle 0
         poke(dut.io.instr.ready, 0)
         poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 1
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-
-        // Cycle 2
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.instr.ready, 1)
-
-        // Cycle 3
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
 
-        // Cycle 4
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 1)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 5)
-
-        // Cycle 5
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.pc, 0)
-        expect(dut.io.instr.bits.word, 5)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
-        poke(dut.io.memInstr.bits, 6)
-
-        // Cycle 6
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.pc, 1)
-        expect(dut.io.instr.bits.word, 6)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 3)
-        poke(dut.io.memInstr.bits, 6)
+        stepUpdate(instrR=u, memInstrV=u, memInstr=u, branchPCV=u, branchPC=u, pcOutV=1, pcOut=1, memInstrR=1, instrV=0, instrPC=x, instrWord=x) // Cycle 1
+        stepUpdate(       1,           u,          u,           u,          u,        0,       x,           1,        0,         x,           x) // Cycle 2
+        stepUpdate(       u,           u,          u,           u,          u,        0,       x,           1,        0,         x,           x) // Cycle 3
+        stepUpdate(       u,           1,          5,           u,          u,        1,       2,           1,        0,         x,           x) // Cycle 4
+        stepUpdate(       u,           1,          6,           u,          u,        1,       3,           1,        1,         0,           5) // Cycle 5
+        stepUpdate(       u,           1,          7,           u,          u,        1,       4,           1,        1,         1,           6) // Cycle 6
       }
     } should be (true)
   }
 
   it should "branch to absolute address" in {
     executeTest("absBranch") {
-      dut : FetchFSMModule => new PeekPokeTester(dut) {
+      dut : FetchPipelineModule => new FetchTester(dut) {
 
         // Cycle 0
         poke(dut.io.instr.ready, 1)
         poke(dut.io.memInstr.valid, 0)
         poke(dut.io.branchPCIn.valid, 0)
-
-        // Cycle 1
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 1)
-        poke(dut.io.branchPCIn.valid, 1)
-        poke(dut.io.branchPCIn.bits, 8)
 
-        // Cycle 2
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 0)
-        poke(dut.io.branchPCIn.valid, 0)
-
-        // Cycle 3
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 8)
-
-        // Cycle 4
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 9)
-
-        // Cycle 5
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 10)
-
-        // Cycle 6
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-
-        // Cycle 7
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 5)
-
-        // Cycle 8
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 5)
-        expect(dut.io.instr.bits.pc, 8)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 0)
+        stepUpdate(instrR=u, memInstrV=1, memInstr=1, branchPCV=1, branchPC=8, pcOutV=0, pcOut=x, memInstrR=0, instrV=0, instrPC=x, instrWord=x) // Cycle 1
+        stepUpdate(       u,           0,          u,           0,          u,        1,       8,           1,        0,         x,           x) // Cycle 2
+        stepUpdate(       u,           0,          u,           0,          u,        1,       9,           1,        0,         x,           x) // Cycle 3
+        stepUpdate(       u,           0,          u,           0,          u,        0,       x,           1,        0,         x,           x) // Cycle 4
+        stepUpdate(       u,           0,          u,           0,          u,        0,       x,           1,        0,         x,           x) // Cycle 5
+        stepUpdate(       u,           0,          u,           0,          u,        0,       x,           1,        0,         x,           x) // Cycle 6
+        stepUpdate(       u,           1,          5,           0,          u,        1,      10,           1,        0,         x,           x) // Cycle 7
+        stepUpdate(       u,           0,          u,           0,          u,        0,       x,           1,        1,         8,           5) // Cycle 8
       }
     } should be (true)
   }
 
   ignore should "branch to relative address" in {
     executeTest("relBranch") {
-      dut : FetchFSMModule => new PeekPokeTester(dut) {
+      dut : FetchPipelineModule => new FetchTester(dut) {
 
         poke(dut.io.instr.ready, 1)
         poke(dut.io.branchPCIn.valid, 0)
@@ -410,210 +244,50 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
 
   it should "stall when output not ready" in {
     executeTest("stallOutput") {
-      dut : FetchFSMModule => new PeekPokeTester(dut) {
+      dut : FetchPipelineModule => new FetchTester(dut) {
 
         poke(dut.io.instr.ready, 1)
         poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 1, State ready
-        step(1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
 
-        // Cycle 2, State buf
-        step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 1)
-
-        // Cycle 3
-        step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 1)
-        expect(dut.io.instr.bits.pc, 0)
-        poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 4
-        step(1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 3)
-        expect(dut.io.instr.valid, 0)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 4)
-        poke(dut.io.instr.ready, 0)
-
-        // Cycle 5
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 4)
-
-        // Cycle 6
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
-
-        // Cycle 7
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
-        poke(dut.io.instr.ready, 1)
-
-        // Cycle 8
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.word, 4)
-        expect(dut.io.instr.bits.pc, 1)
-        expect(dut.io.pcOut.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        poke(dut.io.memInstr.valid, 0)
-
-         // Cycle 9
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 4)
-        expect(dut.io.memInstr.ready, 1)
-
-        // Cycle 10
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 6)
-
-        // Cycle 11
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.pc, 2)
-        expect(dut.io.instr.bits.word, 6)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 12
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 5)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 8)
+        stepUpdate(instrR=u, memInstrV=u, memInstr=u, branchPCV=u, branchPC=u, pcOutV=1, pcOut=1, memInstrR=1, instrV=0, instrPC=x, instrWord=x) // Cycle 1
+        stepUpdate(       u,           1,          1,           u,          u,        1,       2,           1,        0,         x,           x) // Cycle 2
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           1,        1,         0,           1) // Cycle 3
+        stepUpdate(       0,           1,          4,           u,          u,        1,       3,           1,        0,         x,           x) // Cycle 4
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           1,        1,         1,           4) // Cycle 5
+        stepUpdate(       u,           u,          u,           u,          u,        u,       x,           1,        1,         1,           4) // Cycle 6
+        stepUpdate(       1,           u,          u,           u,          u,        u,       x,           1,        1,         1,           4) // Cycle 7
+        stepUpdate(       u,           u,          u,           u,          u,        u,       x,           1,        0,         x,           x) // Cycle 8
+        stepUpdate(       u,           u,          u,           u,          u,        0,       x,           1,        0,         x,           x) // Cycle 9
+        stepUpdate(       u,           1,          6,           u,          u,        1,       4,           1,        0,         x,           x) // Cycle 10
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           1,        1,         2,           6) // Cycle 11
+        stepUpdate(       u,           1,          8,           u,          u,        1,       5,           1,        0,         x,           x) // Cycle 12
       }
     } should be (true)
   }
 
   it should "branch and pause until output is ready" in {
     executeTest("stallBranch") {
-      dut : FetchFSMModule => new PeekPokeTester(dut) {
+      dut : FetchPipelineModule => new FetchTester(dut) {
 
         // Cycle 0
         poke(dut.io.instr.ready, 1)
         poke(dut.io.memInstr.valid, 0)
         poke(dut.io.branchPCIn.valid, 0)
-
-        // Cycle 1
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
         expect(dut.io.pcOut.valid, 1)
         expect(dut.io.pcOut.bits, 0)
 
-        // Cycle 2
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 1)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 5)
-
-        // Cycle 3
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.pc, 0)
-        expect(dut.io.instr.bits.word, 5)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 2)
-        poke(dut.io.memInstr.bits, 6)
-
-        // Cycle 4
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.pc, 1)
-        expect(dut.io.instr.bits.word, 6)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 3)
-        poke(dut.io.memInstr.bits, 7)
-        poke(dut.io.branchPCIn.valid, 1)
-        poke(dut.io.branchPCIn.bits, 7)
-
-        // Cycle 5
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.bits, 8)
-        poke(dut.io.branchPCIn.valid, 0)
-
-        // Cycle 6
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 7)
-        poke(dut.io.memInstr.valid, 0)
-
-        // Cycle 7
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 1)
-        expect(dut.io.pcOut.bits, 8)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 0x14)
-        poke(dut.io.instr.ready, 0)
-
-        // Cycle 8
-        step(1)
-        expect(dut.io.instr.valid, 0)
-        expect(dut.io.memInstr.ready, 0)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.valid, 1)
-        poke(dut.io.memInstr.bits, 0x15)
-        poke(dut.io.instr.ready, 1)
-
-        // Cycle 9
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.pc, 7)
-        expect(dut.io.instr.bits.word, 0x14)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.bits, 0x16)
-
-        // Cycle 10
-        step(1)
-        expect(dut.io.instr.valid, 1)
-        expect(dut.io.instr.bits.pc, 8)
-        expect(dut.io.instr.bits.word, 0x15)
-        expect(dut.io.memInstr.ready, 1)
-        expect(dut.io.pcOut.valid, 0)
-        poke(dut.io.memInstr.bits, 0x17)
+        stepUpdate(instrR=u, memInstrV=u, memInstr=u, branchPCV=u, branchPC=u, pcOutV=1, pcOut=1, memInstrR=1, instrV=0, instrPC=x, instrWord=x) // Cycle 1
+        stepUpdate(       u,           1,          5,           u,          u,        1,       2,           1,        0,         x,           x) // Cycle 2
+        stepUpdate(       u,           u,          6,           u,          u,        1,       3,           1,        1,         0,           5) // Cycle 3
+        stepUpdate(       u,           u,          7,           1,          7,        0,       x,           0,        1,         1,           6) // Cycle 4
+        stepUpdate(       u,           u,          8,           0,          u,        1,       7,           1,        0,         x,           x) // Cycle 5
+        stepUpdate(       u,           0,          u,           u,          u,        1,       8,           1,        0,         x,           x) // Cycle 6
+        stepUpdate(       0,           1,       0x14,           u,          u,        1,       9,           1,        0,         x,           x) // Cycle 7
+        stepUpdate(       1,           u,       0x15,           u,          u,        1,      10,           1,        1,         7,        0x14) // Cycle 8
+        stepUpdate(       u,           u,       0x16,           u,          u,        1,      11,           1,        1,         8,        0x15) // Cycle 9
+        stepUpdate(       u,           u,       0x17,           u,          u,        1,      12,           1,        1,         9,        0x16) // Cycle 10
       }
     } should be (true)
   }

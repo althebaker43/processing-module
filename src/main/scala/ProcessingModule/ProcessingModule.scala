@@ -97,7 +97,7 @@ abstract class ProcessingModule(
 
   val preTrapVector = initPreTrapVector
 
-  val fetch = Module(new FetchFSMModule(iWidth, pcWidth, pcAlign))
+  val fetch = Module(new FetchPipelineModule(iWidth, pcWidth, pcAlign))
   fetch.io.pcOut <> io.instr.pc
   fetch.io.memInstr <> io.instr.in
 

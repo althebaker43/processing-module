@@ -5,6 +5,31 @@ import org.scalatest.{Matchers, FlatSpec}
 import chisel3._
 import chisel3.iotesters.{ChiselFlatSpec, PeekPokeTester, Driver}
 
+class DecodeTableTester(dut : DecodeFSMModule) extends TableTester(
+  dut,
+  List(
+    dut.io.instrIn.valid,
+    dut.io.instrIn.bits.pc,
+    dut.io.instrIn.bits.word,
+    dut.io.data.valid,
+    dut.io.data.index,
+    dut.io.data.preTrap,
+    dut.io.data.word,
+    dut.io.exData.valid,
+    dut.io.exData.index,
+    dut.io.exData.preTrap,
+    dut.io.exData.word,
+    dut.io.instrReady),
+  List(
+    dut.io.instrIn.ready,
+    dut.io.branchPC.valid,
+    dut.io.branchPC.bits,
+    dut.io.instrValids(0),
+    dut.io.instrValids(1),
+    dut.io.instrValids(2),
+    dut.io.instrOut.pc,
+    dut.io.instrOut.word))
+
 class DecodeModuleTest extends ChiselFlatSpec {
 
   val instrs = new Instructions {
@@ -353,6 +378,28 @@ class DecodeModuleTest extends ChiselFlatSpec {
         expect(dut.io.instrOut.word, "b000_011_01".U)
         expect(dut.io.instrOut.pc, 2.U)
         expect(dut.io.instrIn.ready, true.B)
+      }
+    } should be(true)
+  }
+
+  it should "handle exceptions" in {
+    executeTest("except"){
+      dut => new DecodeTableTester(dut) {
+
+        poke(dut.io.instrReady, true.B)
+        poke(dut.io.instrIn.valid, false.B)
+        poke(dut.io.data.valid, false.B)
+        poke(dut.io.exData.valid, false.B)
+
+        val i2 = 0x9
+
+        step(rfDepth) // RF init
+
+        //              instrIn     data            exData          ready   in  br               instrOut
+        //              V  pc   w   V   i   t   w   V   i   t   w   r       r   v   b   v0 v1 v2 pc   w
+        stepUpdate(List(0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, x,  x))
+        stepUpdate(List(1,  u, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, x,  x))
+        stepUpdate(List(0,  1,  u,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  1, 0, 0, 0, i2))
       }
     } should be(true)
   }

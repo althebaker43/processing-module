@@ -54,8 +54,6 @@ class FetchModuleTest extends ChiselFlatSpec {
   // }
 }
 
-class SignalValue(val isValid : Boolean, val value : Int = 0)
-
 class FetchTester(dut : FetchPipelineModule) extends PeekPokeTester[FetchPipelineModule](dut) {
 
   implicit def intToSignalValue(intVal : Int) : SignalValue = new SignalValue(isValid=true, value=intVal)

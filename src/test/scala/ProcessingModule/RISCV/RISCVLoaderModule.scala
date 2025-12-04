@@ -76,7 +76,13 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
   instr.bits := instrReg.bits
   when (pc.valid & instr.ready) {
     instrReg.valid := true.B
-    instrReg.bits := instrMem(pc.bits >> 2)
+    when (pc.bits === 0x2000.U) {
+      instrReg.bits := 0x305020F3.U // csrr pretrap_r1,mtvec
+    } .elsewhen (pc.bits === 0x2004.U) {
+      instrReg.bits := 0x00008067.U // jr pretrap_r1
+    } .otherwise {
+      instrReg.bits := instrMem(pc.bits >> 2)
+    }
   } .otherwise {
     instrReg.valid := false.B
   }

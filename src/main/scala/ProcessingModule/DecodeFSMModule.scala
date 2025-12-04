@@ -34,10 +34,11 @@ class DecodeFSMModule(
     val ops = Output(Vec(numOps, UInt(opWidth.W)))
     val branchPC = util.Valid(SInt(pcWidth.W))
     val instrOut = Output(new Instruction(iWidth, pcWidth))
+    val preTrapInstr = Output(Bool())
     val instrReady = Input(Bool())
   })
 
-  val stateInit :: stateReady :: stateWait :: stateFlush :: Nil = util.Enum(4)
+  val stateInit :: stateReady :: stateWait :: stateWaitBranch :: stateFlush :: Nil = util.Enum(5)
   val stateReg = RegInit(stateInit)
   val nextState = Wire(UInt())
   stateReg := nextState
@@ -83,18 +84,39 @@ class DecodeFSMModule(
 
     is (stateReady) {
       printDbg("Decode state = ready\n")
-      when (stall | !io.instrReady) {
+      when (hazard | !io.instrReady) {
         nextState := stateWait
+      } .elsewhen (branchTaken) {
+        nextState := stateWaitBranch
       }
     }
 
     is (stateWait) {
       printDbg("Decode state = wait\n")
       when (!stall & io.instrReady) {
-        when (hazardInstrReg.valid) {
-          nextState := stateFlush
+        when (branchTaken | branchTakenReg) {
+          nextState := stateWaitBranch
         } .otherwise {
-          nextState := stateReady
+          when (hazardInstrReg.valid) {
+            nextState := stateFlush
+          } .otherwise {
+            nextState := stateReady
+          }
+        }
+      }
+    }
+
+    is (stateWaitBranch) {
+      printDbg("Decode state = waitBr\n")
+      when (branchFinished) {
+        when (!hazard & io.instrReady) {
+          when (hazardInstrReg.valid) {
+            nextState := stateFlush
+          } .otherwise {
+            nextState := stateReady
+          }
+        } .otherwise {
+          nextState := stateWait
         }
       }
     }
@@ -111,6 +133,7 @@ class DecodeFSMModule(
   val preTrapRF = Mem(4, new RFWord(rfWidth))
 
   val preTrapEnabledReg = RegInit(false.B)
+  io.preTrapInstr := preTrapEnabledReg
 
   val rfDataIn = Wire(new RFWord(rfWidth))
   rfDataIn.word := 0.U
@@ -164,7 +187,7 @@ class DecodeFSMModule(
     }
   }
 
-  io.instrIn.ready := (stateReg === stateReady)
+  io.instrIn.ready := (stateReg === stateReady) | (stateReg === stateWaitBranch)
   io.branchPC.valid := false.B
   io.branchPC.bits := 0.S
   io.instrOut := instrReg.bits
@@ -186,12 +209,15 @@ class DecodeFSMModule(
   hazard := false.B
   branchTaken := false.B
   for ((instr, idx) <-  instrs.logic.zipWithIndex) {
+
     when (((stateReg === stateReady) | (stateReg === stateFlush)) & instrReg.valid) {
       instrValids(idx) := instr.decode(instrReg.bits.word)
     } .otherwise {
       instrValids(idx) := false.B
     }
+
     when (instrValids(idx)) {
+
       for (opIdx <- 0 until instr.numOps) {
 
         val rfIdx = Wire(UInt(rfIdxWidth.W))
@@ -214,9 +240,13 @@ class DecodeFSMModule(
           }
         }
       }
+
       when (instr.raiseException(instrReg.bits.word, ops)) {
         io.branchPC.valid := !hazard
         io.branchPC.bits := preTrapVector.asSInt()
+        branchTaken := true.B
+        branchPCReg := io.branchPC.bits.asUInt
+        preTrapEnabledReg := true.B
       } .elsewhen (instr.branch()) {
         when (instr.relativeBranch()) {
           io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops) + instrReg.bits.pc.asSInt()
@@ -227,6 +257,9 @@ class DecodeFSMModule(
           io.branchPC.valid := !hazard
           branchTaken := true.B
           branchPCReg := io.branchPC.bits.asUInt
+        }
+        when (preTrapEnabledReg) {
+          preTrapEnabledReg := false.B
         }
       }
       when (instr.writeRF(instrReg.bits.word)) {

@@ -27,8 +27,10 @@ class DecodeTableTester(dut : DecodeFSMModule) extends TableTester(
     dut.io.instrValids(0),
     dut.io.instrValids(1),
     dut.io.instrValids(2),
+    dut.io.instrValids(3),
     dut.io.instrOut.pc,
-    dut.io.instrOut.word))
+    dut.io.instrOut.word,
+    dut.io.preTrapInstr))
 
 class DecodeModuleTest extends ChiselFlatSpec {
 
@@ -70,6 +72,10 @@ class DecodeModuleTest extends ChiselFlatSpec {
         ops(0).asSInt
       }
     } ::
+    new InstructionLogic("ecall") {
+      def decode ( instr : UInt ) : Bool = instr(1,0) === 0.U
+      override def raiseException(instr : UInt, ops : Vec[UInt]) : Bool = true.B
+    } ::
     Nil
   }
 
@@ -77,7 +83,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
 
   def executeTest(testName : String, dbgMsg : Boolean = false)(testerGen : DecodeFSMModule => PeekPokeTester[DecodeFSMModule]) : Boolean = {
     Driver.execute(Array("--generate-vcd-output", "on", "--target-dir", "test_run_dir/decode_" + testName),
-      () => new DecodeFSMModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=rfDepth, preTrapVector=0.U(6.W), dbgMsg=dbgMsg))(testerGen)
+      () => new DecodeFSMModule(iWidth=8, pcWidth=6, instrs=instrs, numOps=2, opWidth=4, rfWidth=4, rfDepth=rfDepth, preTrapVector=20.U(6.W), dbgMsg=dbgMsg))(testerGen)
   }
 
   behavior of "DecodeModule"
@@ -391,15 +397,23 @@ class DecodeModuleTest extends ChiselFlatSpec {
         poke(dut.io.data.valid, false.B)
         poke(dut.io.exData.valid, false.B)
 
-        val i2 = 0x9
+        val i2 = 0x9 // incr 2, 000_010_01
+        val ec = 0x0 // ecall
 
         step(rfDepth) // RF init
 
-        //              instrIn     data            exData          ready   in  br               instrOut
-        //              V  pc   w   V   i   t   w   V   i   t   w   r       r   v   b   v0 v1 v2 pc   w
-        stepUpdate(List(0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, x,  x))
-        stepUpdate(List(1,  u, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, x,  x))
-        stepUpdate(List(0,  1,  u,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  1, 0, 0, 0, i2))
+        //              instrIn     data            exData          ready   in  br                   instrOut
+        //              V  pc   w   V   i   t   w   V   i   t   w   r       r   v   b   v0 v1 v2 v3  pc  w  pTr
+        stepUpdate(List(0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, 0)) // Cycle 9
+        stepUpdate(List(1,  u, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, 0)) // Cycle 10
+        stepUpdate(List(1,  1, ec,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  1, 0, 0, 0,  0, i2, 0)) // Cycle 11
+        stepUpdate(List(0,  u,  u,  1,  2,  0,  1,  0,  0,  0,  0,  u,      1,  1, 20,  0, 0, 0, 0,  x,  x, x)) // Cycle 12
+        stepUpdate(List(0,  u,  u,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 12
+        stepUpdate(List(1,  2, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 13
+        stepUpdate(List(u,  3, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 14
+        stepUpdate(List(u,  4, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 15
+        stepUpdate(List(u, 20, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 16
+        stepUpdate(List(u, 21, i2,  1,  2,  0,  2,  0,  0,  0,  0,  u,      1,  0,  x,  1, 0, 0, 0, 20, i2, 1)) // Cycle 17
       }
     } should be(true)
   }

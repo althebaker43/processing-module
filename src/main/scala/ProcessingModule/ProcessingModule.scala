@@ -110,10 +110,11 @@ abstract class ProcessingModule(
   execute.io.instrValids <> decode.io.instrValids
   decode.io.instrReady := execute.io.instrReady
   execute.io.ops <> decode.io.ops
+  execute.io.preTrapInstr := decode.io.preTrapInstr
   decode.io.exData.word := execute.io.results.data
   decode.io.exData.valid := execute.io.results.writeRF & ~execute.io.results.readMem & ~execute.io.results.writeMem
   decode.io.exData.index := execute.io.results.rfIndex
-  decode.io.exData.preTrap := false.B
+  decode.io.exData.preTrap := execute.io.results.preTrap
 
   val memory = Module(new MemoryModule(dWidth, dAddrWidth, rfDepth, instrs))
   memory.io.results <> execute.io.results
@@ -124,7 +125,7 @@ abstract class ProcessingModule(
   decode.io.data.valid := memory.io.rfDataOut.valid
   decode.io.data.word := memory.io.rfDataOut.bits
   decode.io.data.index := memory.io.rfIndexOut
-  decode.io.data.preTrap := false.B
+  decode.io.data.preTrap := memory.io.preTrap
 }
 
 object AdderInstruction {
@@ -684,6 +685,7 @@ class ExecuteResults(dataWidth : Int, addrWidth : Int, rfDepth : Int, numInstrs 
   val writeMem = Bool()
   val writeRF = Bool()
   val instrValids = Vec(numInstrs, Bool())
+  val preTrap = Bool()
   override def cloneType = (new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs)).asInstanceOf[this.type]
 }
 
@@ -704,6 +706,7 @@ class ExecuteModule(
   val io = IO(new Bundle {
     val instr = Input(new Instruction(iWidth, pcWidth))
     val instrValids = Input(Vec(numInstrs, Bool()))
+    val preTrapInstr = Input(Bool())
     val instrReady = Output(Bool())
     val ops = Input(Vec(numOps, UInt(opWidth.W)))
     val results = Output(new ExecuteResults(dataWidth, addrWidth, rfDepth, numInstrs))
@@ -717,6 +720,7 @@ class ExecuteModule(
   results.addr := 0.U
   results.rfIndex := 0.U
   results.data := 0.U
+  results.preTrap := io.preTrapInstr
   for ((instr, idx) <- instrs.logic.zipWithIndex) {
     when (io.instrValids(idx)) {
       results.readMem := instr.readMemory(io.instr.word)
@@ -750,6 +754,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     val memDataIn = Flipped(util.Decoupled(UInt(dataWidth.W)))
     val rfDataOut = util.Valid(UInt(dataWidth.W))
     val rfIndexOut = Output(UInt(rfIdxWidth.W))
+    val preTrap = Output(Bool())
   })
 
   val writeMemReg = RegInit(false.B)
@@ -759,6 +764,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val addrReg = RegInit(0.U(addrWidth.W))
   val rfIdxInReg = RegInit(0.U(rfIdxWidth.W))
   val instrValidsReg = RegInit(VecInit(Seq.fill(numInstrs){ false.B }))
+  val preTrapReg = RegInit(false.B)
 
   val writeMem = Wire(Bool())
   val readMem = Wire(Bool())
@@ -767,6 +773,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val addr = Wire(UInt(addrWidth.W))
   val rfIdxIn = Wire(UInt(rfIdxWidth.W))
   val instrValids = Wire(Vec(numInstrs, Bool()))
+  val preTrap = Wire(Bool())
 
   val stepLoad :: stepStore :: Nil = util.Enum(2)
   val stepReg = RegInit(stepLoad)
@@ -789,10 +796,12 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
   val rfValidReg = RegInit(false.B)
   val rfDataReg = RegInit(0.U(dataWidth.W))
   val rfIdxOutReg = RegInit(0.U(rfIdxWidth.W))
+  val preTrapOutReg = RegInit(false.B)
 
   io.rfDataOut.valid := rfValidReg
   io.rfDataOut.bits := rfDataReg
   io.rfIndexOut := rfIdxOutReg
+  io.preTrap := preTrapOutReg
 
   val memBusy = Wire(Bool())
   val memBusyReg = RegInit(false.B)
@@ -819,6 +828,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     addrReg := addr
     rfIdxInReg := rfIdxIn
     instrValidsReg := instrValids
+    preTrapReg := preTrap
   }
 
   when (writeMem & readMem & !memBusy) {
@@ -835,6 +845,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     writeRF := io.results.writeRF
     addr := io.results.addr
     rfIdxIn := io.results.rfIndex
+    preTrap := io.results.preTrap
     instrValids := io.results.instrValids
     data := io.results.data
     for ((instr, idx) <- instrs.logic.zipWithIndex) {
@@ -850,6 +861,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     addr := addrReg
     rfIdxIn := rfIdxInReg
     instrValids := instrValidsReg
+    preTrap := preTrapReg
   }
 
   when (writeRF) {
@@ -865,6 +877,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
       rfDataReg := data
     }
     rfIdxOutReg := rfIdxIn
+    preTrapOutReg := preTrap
   } .otherwise {
     rfValidReg := false.B
   }

@@ -228,9 +228,7 @@ class CSRRCI extends RISCVInstructionLogic("csrrci") {
 class ECALL extends RISCVInstructionLogic("ecall") {
   override val numOps : Int = 0
   override def decode(instr : UInt) : Bool = isSystem(instr) & (getFunc(instr) === "b000".U)
-  override def writeMemory(instr : UInt) : Bool = true.B
-  override def getAddress(instr: UInt, ops: Vec[UInt]): UInt = 0.U
-  override def getData(instr: UInt, pc: UInt, ops: Vec[UInt]): UInt = 1.U
+  override def raiseException(instr: UInt, ops: Vec[UInt]): Bool = true.B
 }
 
 class FENCE extends RISCVInstructionLogic("fence") {
@@ -308,6 +306,6 @@ class RISCVProcessingModule (rfDepth : Int)
 
   override def initInstrs = new RISCVInstructions
 
-  override def initPreTrapVector = 0.U(32.W)
+  override def initPreTrapVector = 0x2000.U(32.W)
 }
 

@@ -14,12 +14,17 @@ abstract class RISCVInstructionLogic(name : String) extends InstructionLogic(nam
   def isJAL(instr : UInt) : Bool = getOpcode(instr) === "b11_011".U
   def isJALR(instr : UInt) : Bool = getOpcode(instr) === "b11_001".U
   def isMiscMem(instr : UInt) : Bool = getOpcode(instr) === "b00_011".U
+  def isStore(instr : UInt) : Bool = getOpcode(instr) === "b01_000".U
 
   def getFunc(instr : UInt) : UInt = instr(14,12)
 
   def getIImm(instr : UInt) : UInt = instr(31,20)
   def getIDest(instr : UInt) : UInt = instr(11,7)
   def getISrc(instr : UInt) : UInt = instr(19,15)
+
+  def getSSrc1(instr : UInt) : UInt = instr(19, 15)
+  def getSSrc2(instr : UInt) : UInt = instr(24, 20)
+  def getSImm(instr : UInt) : UInt = util.Cat(instr(31,25), instr(11,7))
 
   def getUImm(instr : UInt) : UInt = instr(31,12)
   def getUDest(instr : UInt) : UInt = instr(11,7)
@@ -38,7 +43,7 @@ class ADDI extends RISCVInstructionLogic("addi") {
   override def getRFIndex(instr : UInt, opIndex : Int) : UInt = getISrc(instr)
   override def writeRF(instr : UInt) : Bool = true.B
   override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
-  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0) + getIImm(instr)
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = (ops(0).asSInt + getIImm(instr).asSInt).asUInt
 }
 
 class LUI extends RISCVInstructionLogic("lui") {
@@ -251,7 +256,7 @@ class JALR extends RISCVInstructionLogic("jalr") {
   override def decode(instr : UInt) : Bool = isJALR(instr)
   override def getRFIndex(instr : UInt, opIndex : Int) : UInt = getISrc(instr)
   override def branch() : Bool = true.B
-  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = util.Cat(getIImm(instr).asSInt + util.Cat(0.U(1.W), ops(0)).asSInt, 0.U(1.W)).asSInt
+  override def getBranchPC(instr : UInt, ops : Vec[UInt]) : SInt = getIImm(instr).asSInt + util.Cat(0.U(1.W), ops(0)).asSInt
   override def writeRF(instr : UInt) : Bool = getIDest(instr) =/= 0.U
   override def getWriteIndex(instr: UInt, ops: Vec[UInt]): UInt = getIDest(instr)
   override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = pc + 4.U
@@ -264,6 +269,21 @@ class SLLI extends RISCVInstructionLogic("slli") {
   override def writeRF(instr: UInt): Bool = true.B
   override def getWriteIndex(instr: UInt, ops: Vec[UInt]): UInt = getIDest(instr)
   override def getData(instr: UInt, pc: UInt, ops: Vec[UInt]): UInt = ops(1) << getIImm(instr)(4,0)
+}
+
+class SW extends RISCVInstructionLogic("sw") {
+  override val numOps : Int = 2
+  override def decode(instr : UInt) : Bool = isStore(instr) & (getFunc(instr) === "b010".U)
+  override def getRFIndex(instr : UInt, opIndex : Int) : UInt = {
+    opIndex match {
+      case 0 => getSSrc1(instr)
+      case 1 => getSSrc2(instr)
+      case _ => 0.U
+    }
+  }
+  override def writeMemory(instr : UInt) : Bool = true.B
+  override def getAddress(instr : UInt, ops : Vec[UInt]) : UInt = (ops(0).asSInt + getSImm(instr).asSInt).asUInt
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(1)
 }
 
 class RISCVInstructions extends ProcessingModule.Instructions {
@@ -291,6 +311,7 @@ class RISCVInstructions extends ProcessingModule.Instructions {
   new JALR ::
   new LUI ::
   new SLLI ::
+  new SW ::
   Nil
 }
 

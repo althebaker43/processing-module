@@ -18,7 +18,7 @@ class FetchPipelineModule(iWidth : Int, pcWidth : Int, pcAlign : Int, val dbgMsg
   val outQueue = Module(new ClearableQueue(new Instruction(iWidth, pcWidth), depth=2))
 
   val pcRegValid = Wire(Bool())
-  pcRegValid := !io.branchPCIn.valid & pcQueue.io.enq.ready & outQueue.io.enq.ready
+  pcRegValid := !io.branchPCIn.valid & pcQueue.io.enq.ready & outQueue.io.enq.ready & io.instr.ready
 
   when (io.branchPCIn.valid) {
     pcReg := io.branchPCIn.bits.asUInt()

@@ -864,7 +864,7 @@ class MemoryModule(dataWidth : Int, addrWidth : Int, rfDepth : Int, instrs : Ins
     preTrap := preTrapReg
   }
 
-  when (writeRF) {
+  when (writeRF & readMem) {
     when (readMem) {
       rfValidReg := io.memDataIn.valid
       for ((instr, idx) <- instrs.logic.zipWithIndex) {

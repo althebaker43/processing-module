@@ -124,12 +124,10 @@ class RISCVLoaderModule(dumpPath : String) extends Module {
   // }
 
   when (memDataInAddr.valid &
-    (memDataInAddr.bits === 0.U) &
+    (memDataInAddr.bits === 0x1000.U) &
     memDataIn.valid) {
 
-    when (memDataIn.bits === 0.U) {
-      io.status.bits := false.B
-    } .otherwise {
+    when (memDataIn.bits === 1337.U) {
       io.status.bits := true.B
     }
 

@@ -46,6 +46,15 @@ class ADDI extends RISCVInstructionLogic("addi") {
   override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = (ops(0).asSInt + getIImm(instr).asSInt).asUInt
 }
 
+class ORI extends RISCVInstructionLogic("ori") {
+  override val numOps : Int = 1
+  override def decode(instr : UInt) : Bool = isOpImm(instr) & (getFunc(instr) === "b110".U) & (getIDest(instr) =/= 0.U)
+  override def getRFIndex(instr : UInt, opIndex : Int) : UInt = getISrc(instr)
+  override def writeRF(instr : UInt) : Bool = true.B
+  override def getWriteIndex(instr : UInt, ops : Vec[UInt]) : UInt = getIDest(instr)
+  override def getData(instr : UInt, pc : UInt, ops : Vec[UInt]) : UInt = ops(0) | getIImm(instr)
+}
+
 class LUI extends RISCVInstructionLogic("lui") {
   override val numOps : Int = 1
   override def decode(instr : UInt) : Bool = isLUI(instr)
@@ -310,6 +319,7 @@ class RISCVInstructions extends ProcessingModule.Instructions {
   new JAL ::
   new JALR ::
   new LUI ::
+  new ORI ::
   new SLLI ::
   new SW ::
   Nil

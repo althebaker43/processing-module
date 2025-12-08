@@ -68,10 +68,10 @@ class DecodeFSMModule(
   }
 
   val hazardInstrReg = Reg(util.Valid(new Instruction(iWidth, pcWidth)))
-  when (hazard & io.instrIn.valid) {
+  when (hazard & io.instrIn.valid & (stateReg === stateReady)) {
     hazardInstrReg.valid := true.B
     hazardInstrReg.bits := io.instrIn.bits
-  } .elsewhen (stateReg === stateFlush) {
+  } .elsewhen ((stateReg === stateFlush) | (stateReg === stateWaitBranch)) {
     hazardInstrReg.valid := false.B
   }
 
@@ -118,11 +118,7 @@ class DecodeFSMModule(
       printDbg("Decode state = waitBr\n")
       when (branchFinished) {
         when (!hazard & io.instrReady) {
-          when (hazardInstrReg.valid) {
-            nextState := stateFlush
-          } .otherwise {
-            nextState := stateReady
-          }
+          nextState := stateReady
         } .otherwise {
           nextState := stateWait
         }
@@ -219,7 +215,7 @@ class DecodeFSMModule(
   branchTaken := false.B
   for ((instr, idx) <-  instrs.logic.zipWithIndex) {
 
-    when (((stateReg === stateReady) | (stateReg === stateFlush) | ((stateReg === stateWaitBranch) & !branchFinished)) & instrReg.valid) {
+    when (instrReg.valid) {
       instrValids(idx) := instr.decode(instrReg.bits.word)
     } .otherwise {
       instrValids(idx) := false.B
@@ -258,24 +254,26 @@ class DecodeFSMModule(
         }
       }
 
-      when (instr.raiseException(instrReg.bits.word, ops)) {
-        io.branchPC.valid := !hazard & !branchPCReg.valid
-        io.branchPC.bits := preTrapVector.asSInt()
-        branchTaken := true.B
-        branchPCReg.bits := io.branchPC.bits.asUInt
-        branchPCReg.valid := !hazard
-        preTrapEnabledReg := true.B
-      } .elsewhen (instr.branch()) {
-        when (instr.relativeBranch()) {
-          io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops) + instrReg.bits.pc.asSInt()
-        } .otherwise {
-          io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops)
-        }
-        when (io.branchPC.bits.asUInt =/= (instrReg.bits.pc + 4.U)) {
+      when (!branchFinished) {
+        when (instr.raiseException(instrReg.bits.word, ops)) {
           io.branchPC.valid := !hazard & !branchPCReg.valid
+          io.branchPC.bits := preTrapVector.asSInt()
           branchTaken := true.B
           branchPCReg.bits := io.branchPC.bits.asUInt
           branchPCReg.valid := !hazard
+          preTrapEnabledReg := true.B
+        } .elsewhen (instr.branch()) {
+          when (instr.relativeBranch()) {
+            io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops) + instrReg.bits.pc.asSInt()
+          } .otherwise {
+            io.branchPC.bits := instr.getBranchPC(instrReg.bits.word, ops)
+          }
+          when (io.branchPC.bits.asUInt =/= (instrReg.bits.pc + 4.U)) {
+            io.branchPC.valid := !hazard & !branchPCReg.valid
+            branchTaken := true.B
+            branchPCReg.bits := io.branchPC.bits.asUInt
+            branchPCReg.valid := !hazard
+          }
         }
       }
       when (instr.writeRF(instrReg.bits.word)) {

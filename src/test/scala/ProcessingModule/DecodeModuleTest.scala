@@ -392,6 +392,7 @@ class DecodeModuleTest extends ChiselFlatSpec {
     executeTest("except"){
       dut => new DecodeTableTester(dut) {
 
+        // Initial input values
         poke(dut.io.instrReady, true.B)
         poke(dut.io.instrIn.valid, false.B)
         poke(dut.io.data.valid, false.B)
@@ -414,6 +415,32 @@ class DecodeModuleTest extends ChiselFlatSpec {
         stepUpdate(List(u,  4, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 15
         stepUpdate(List(u, 20, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 16
         stepUpdate(List(u, 21, i2,  1,  2,  0,  2,  0,  0,  0,  0,  u,      1,  0,  x,  1, 0, 0, 0, 20, i2, 1)) // Cycle 17
+      }
+    } should be(true)
+  }
+
+  it should "handle multiple consecutive hazards" in {
+    executeTest("multiHazard"){
+      dut => new DecodeTableTester(dut) {
+
+        poke(dut.io.instrReady, true.B)
+        poke(dut.io.instrIn.valid, false.B)
+        poke(dut.io.data.valid, false.B)
+        poke(dut.io.exData.valid, false.B)
+
+        val i2 = 0x9 // incr 2, 000_010_01
+        val ec = 0x0 // ecall
+
+        step(rfDepth) // RF init
+
+        //              instrIn     data            exData          ready   in  br                   instrOut
+        //              V  pc   w   V   i   t   w   V   i   t   w   r       r   v   b   v0 v1 v2 v3  pc  w  pTr
+        stepUpdate(List(0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 9
+        stepUpdate(List(1,  0, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 10
+        stepUpdate(List(1,  1, i2,  0,  0,  0,  0,  0,  0,  0,  0,  u,      1,  0,  x,  1, 0, 0, 0,  0, i2, 0)) // Cycle 11
+        stepUpdate(List(1,  2, i2,  0,  0,  0,  0,  1,  2,  0,  1,  u,      1,  0,  x,  1, 0, 0, 0,  1, i2, 0)) // Cycle 12
+        stepUpdate(List(1,  3, i2,  0,  0,  0,  0,  1,  2,  0,  2,  u,      1,  0,  x,  1, 0, 0, 0,  2, i2, 0)) // Cycle 13
+        stepUpdate(List(0,  u,  u,  0,  0,  0,  0,  0,  u,  0,  u,  u,      1,  0,  x,  0, 0, 0, 0,  x,  x, x)) // Cycle 14
       }
     } should be(true)
   }

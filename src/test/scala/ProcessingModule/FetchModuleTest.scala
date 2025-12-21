@@ -289,6 +289,32 @@ class FetchModulePeekPokeTester extends ChiselFlatSpec {
       }
     } should be (true)
   }
+
+  it should "flush output buffer" in {
+    executeTest("flushOutput") {
+      dut : FetchPipelineModule => new FetchTester(dut) {
+
+        // Cycle 0
+        poke(dut.io.instr.ready, 0)
+        poke(dut.io.memInstr.valid, 0)
+        poke(dut.io.branchPCIn.valid, 0)
+        expect(dut.io.pcOut.valid, 1)
+        expect(dut.io.pcOut.bits, 0)
+
+        stepUpdate(instrR=u, memInstrV=1, memInstr=6, branchPCV=u, branchPC=u, pcOutV=1, pcOut=1, memInstrR=1, instrV=0, instrPC=x, instrWord=x) // Cycle 1
+        stepUpdate(       u,           u,          7,           u,          u,        1,       2,           1,        1,         0,           6) // Cycle 2
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           0,        1,         0,           6) // Cycle 3
+        stepUpdate(       u,           0,          u,           u,          u,        0,       x,           0,        1,         0,           6) // Cycle 4
+        stepUpdate(       1,           0,          u,           u,          u,        1,       3,           1,        1,         0,           6) // Cycle 5
+        stepUpdate(       u,           1,          8,           u,          u,        1,       4,           1,        1,         1,           7) // Cycle 6
+        stepUpdate(       0,           1,          9,           u,          u,        1,       5,           1,        1,         2,           8) // Cycle 7
+        stepUpdate(       u,           1,         10,           u,          u,        0,       x,           0,        1,         2,           8) // Cycle 8
+        stepUpdate(       1,           0,          x,           u,          u,        0,       x,           1,        1,         2,           8) // Cycle 9
+        stepUpdate(       1,           1,         11,           u,          u,        1,       6,           1,        1,         3,           9) // Cycle 10
+        stepUpdate(       1,           1,         12,           u,          u,        1,       7,           1,        1,         4,          10) // Cycle 11
+      }
+    } should be (true)
+  }
 }
 
 class PCGeneratorTester extends ChiselFlatSpec {

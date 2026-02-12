@@ -1,7 +1,9 @@
 Framework for Designing Programmable Modules
 ============================================
 
-Explanatory blog post: <https://www.botbakery.net/2020/02/programmable-module-framework.html>
+Explanatory blog post (2020): <https://www.botbakery.net/2020/02/programmable-module-framework.html>
+
+January 2026 update: <https://www.botbakery.net/2025/12/separating-processor-from-instruction.html>
 
 Third Chisel Community Conference Slides: <https://docs.google.com/presentation/d/1YulbUJaBq_JY_ZgJRoDZ1hji_d2j8E71Ih6SmWmWV2o/edit?usp=sharing>
 
